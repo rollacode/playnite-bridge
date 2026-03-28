@@ -1,0 +1,46 @@
+## .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.ncrunchproject
+*.ncrunchsolution
+.vs/
+*.DotSettings.user
+*.cache
+*.vspscc
+*.vssscc
+
+## Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+bld/
+
+## NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+
+## Rider
+.idea/
+*.sln.iml
+
+## OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+## Plugin config (contains secrets)
+igdb.json
+auth.json
+
+## Reference source (large)
+reference/
