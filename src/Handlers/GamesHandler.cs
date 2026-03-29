@@ -401,6 +401,45 @@ namespace PlayniteBridge.Handlers
             return new { total = _api.Database.Games.Count, missingArt = results.Count, games = results };
         }
 
+        public object GetCover(Guid gameId, string type = "cover")
+        {
+            var game = _api.Database.Games.Get(gameId);
+            if (game == null) return Error(404, "Game not found");
+
+            string dbPath = null;
+            switch (type)
+            {
+                case "cover": dbPath = game.CoverImage; break;
+                case "icon": dbPath = game.Icon; break;
+                case "background": dbPath = game.BackgroundImage; break;
+            }
+
+            if (string.IsNullOrEmpty(dbPath))
+                return Error(404, $"No {type} image for this game");
+
+            try
+            {
+                var fullPath = _api.Database.GetFullFilePath(dbPath);
+                if (string.IsNullOrEmpty(fullPath) || !System.IO.File.Exists(fullPath))
+                    return Error(404, "Image file not found on disk");
+
+                var data = System.IO.File.ReadAllBytes(fullPath);
+                var ext = System.IO.Path.GetExtension(fullPath).ToLower();
+                var contentType = "image/png";
+                if (ext == ".jpg" || ext == ".jpeg") contentType = "image/jpeg";
+                else if (ext == ".gif") contentType = "image/gif";
+                else if (ext == ".webp") contentType = "image/webp";
+                else if (ext == ".ico") contentType = "image/x-icon";
+                else if (ext == ".tga") contentType = "image/x-tga";
+
+                return new ImageResult { Data = data, ContentType = contentType };
+            }
+            catch (Exception ex)
+            {
+                return Error(500, "Failed to read image: " + ex.Message);
+            }
+        }
+
         private static object Error(int code, string message)
         {
             return new { error = message, code };

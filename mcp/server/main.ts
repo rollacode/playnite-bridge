@@ -492,6 +492,36 @@ registerAppTool(
   }
 );
 
+// ---- Launch tool ----
+
+server.tool(
+  "launch_game",
+  "Launch a game on the computer via Playnite",
+  {
+    gameId: z.string().describe("The game's unique ID"),
+  },
+  async (args) => {
+    try {
+      await client.post(`/api/games/${args.gameId}/launch`);
+      return {
+        content: [
+          { type: "text" as const, text: `Launching game ${args.gameId}...` },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Error launching game: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
 // ---- Regular tools (no UI) ----
 
 server.tool(

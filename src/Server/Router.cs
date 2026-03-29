@@ -91,6 +91,7 @@ namespace PlayniteBridge.Server
                         if (action == "fetch-art" && method == "POST") return _automation.FetchArt(gameId);
                         if (action == "achievements" && method == "GET") return _pluginData.GetAchievements(gameId);
                         if (action == "activity" && method == "GET") return _pluginData.GetActivity(gameId);
+                        if (action == "cover" && method == "GET") return _games.GetCover(gameId, ctx.QueryString?["type"] ?? "cover");
                         if (action == "delete" && method == "POST") return _games.DeleteGame(gameId); // compat
                     }
                 }

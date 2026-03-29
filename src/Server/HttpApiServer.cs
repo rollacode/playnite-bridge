@@ -124,7 +124,17 @@ namespace PlayniteBridge.Server
                     result = new { error = "Not found", help = "GET /api for endpoint list" };
                 }
 
-                WriteJson(res, result);
+                if (result is ImageResult img)
+                {
+                    res.ContentType = img.ContentType;
+                    res.ContentLength64 = img.Data.Length;
+                    res.Headers.Add("Cache-Control", "public, max-age=86400");
+                    res.OutputStream.Write(img.Data, 0, img.Data.Length);
+                }
+                else
+                {
+                    WriteJson(res, result);
+                }
             }
             catch (Exception ex)
             {

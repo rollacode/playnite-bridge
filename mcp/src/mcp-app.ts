@@ -19,6 +19,18 @@ const SOURCE_COLORS: Record<string, string> = {
   "Humble Bundle": "#cc2929",
 };
 
+// Placeholder gradient colors based on first letter hash
+const PLACEHOLDER_GRADIENTS = [
+  ["#2d1b4e", "#4a2d6e"],
+  ["#1b2e4e", "#2d4a6e"],
+  ["#1b4e3a", "#2d6e52"],
+  ["#4e1b2d", "#6e2d4a"],
+  ["#4e3a1b", "#6e522d"],
+  ["#1b3a4e", "#2d526e"],
+  ["#3a1b4e", "#522d6e"],
+  ["#4e1b1b", "#6e2d2d"],
+];
+
 interface Game {
   id: string;
   name: string;
@@ -43,6 +55,7 @@ interface Game {
   criticScore?: number;
   links?: Array<{ name: string; url: string }>;
   gameId?: string;
+  coverUrl?: string;
 }
 
 interface Stats {
@@ -76,24 +89,39 @@ function formatPlaytimeFull(s?: number): string {
   return formatPlaytime(s);
 }
 
-function getSteamImg(game: Game): string | null {
+function getSteamCoverUrl(game: Game): string | null {
+  if (game.source !== "Steam") return null;
+  // Extract Steam app ID for portrait cover (library_600x900)
+  if (game.links) {
+    for (const l of game.links) {
+      const m = l.url?.match(/\/app\/(\d+)/);
+      if (m)
+        return `https://steamcdn-a.akamaihd.net/steam/apps/${m[1]}/library_600x900_2x.jpg`;
+    }
+  }
+  if (game.gameId && /^\d+$/.test(game.gameId))
+    return `https://steamcdn-a.akamaihd.net/steam/apps/${game.gameId}/library_600x900_2x.jpg`;
+  return null;
+}
+
+function getSteamHeaderUrl(game: Game): string | null {
   if (game.source !== "Steam") return null;
   if (game.links) {
     for (const l of game.links) {
       const m = l.url?.match(/\/app\/(\d+)/);
       if (m)
-        return (
-          "https://steamcdn-a.akamaihd.net/steam/apps/" + m[1] + "/header.jpg"
-        );
+        return `https://steamcdn-a.akamaihd.net/steam/apps/${m[1]}/header.jpg`;
     }
   }
   if (game.gameId && /^\d+$/.test(game.gameId))
-    return (
-      "https://steamcdn-a.akamaihd.net/steam/apps/" +
-      game.gameId +
-      "/header.jpg"
-    );
+    return `https://steamcdn-a.akamaihd.net/steam/apps/${game.gameId}/header.jpg`;
   return null;
+}
+
+function getPlaceholderStyle(name: string): string {
+  const code = (name || "?").charCodeAt(0) % PLACEHOLDER_GRADIENTS.length;
+  const [c1, c2] = PLACEHOLDER_GRADIENTS[code];
+  return `background: linear-gradient(135deg, ${c1}, ${c2})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,16 +135,13 @@ app.ontoolresult = (result: { content?: Array<{ type: string; text?: string }> }
   const texts = result.content?.filter((c) => c.type === "text").map((c) => c.text || "") || [];
   const fullText = texts.join("\n");
 
-  // Try to extract embedded JSON data
   const gamesMatch = fullText.match(/<!--GAMES_JSON:([\s\S]*?)-->/);
   if (gamesMatch) {
     try {
       const games: Game[] = JSON.parse(gamesMatch[1]);
       renderGames(games);
       return;
-    } catch {
-      // Fall through
-    }
+    } catch { /* Fall through */ }
   }
 
   const gameMatch = fullText.match(/<!--GAME_JSON:([\s\S]*?)-->/);
@@ -125,9 +150,7 @@ app.ontoolresult = (result: { content?: Array<{ type: string; text?: string }> }
       const game: Game = JSON.parse(gameMatch[1]);
       showDetail(game);
       return;
-    } catch {
-      // Fall through
-    }
+    } catch { /* Fall through */ }
   }
 
   const statsMatch = fullText.match(/<!--STATS_JSON:([\s\S]*?)-->/);
@@ -136,14 +159,11 @@ app.ontoolresult = (result: { content?: Array<{ type: string; text?: string }> }
       const stats: Stats = JSON.parse(statsMatch[1]);
       renderStats(stats);
       return;
-    } catch {
-      // Fall through
-    }
+    } catch { /* Fall through */ }
   }
 
-  // Fallback: render as text
   appEl.innerHTML =
-    '<pre style="white-space:pre-wrap;font-family:inherit;color:#c0c8d8;line-height:1.6;padding:16px">' +
+    '<pre style="white-space:pre-wrap;font-family:inherit;color:#8891a5;line-height:1.5;padding:12px;font-size:12px">' +
     esc(texts[0] || "No data") +
     "</pre>";
 };
@@ -167,26 +187,27 @@ function renderGames(games: Game[]) {
   `;
 
   for (const g of games) {
-    const imgUrl = getSteamImg(g);
-    const srcColor = SOURCE_COLORS[g.source || ""] || "#555";
+    const coverUrl = g.coverUrl || getSteamCoverUrl(g);
+    const srcColor = SOURCE_COLORS[g.source || ""] || "#3a4260";
+    const placeholderLetter = esc((g.name || "?").substring(0, 1));
+    const placeholderStyle = getPlaceholderStyle(g.name || "?");
+
     html += `
       <div class="card" data-game-id="${esc(g.id)}">
-        <div class="card-img">
+        <div class="card-img"${!coverUrl ? ` style="${placeholderStyle}"` : ""}>
           ${
-            imgUrl
-              ? '<img src="' + imgUrl + '" alt="" loading="lazy">'
-              : '<span class="placeholder">' +
-                esc((g.name || "?").substring(0, 3)) +
-                "</span>"
+            coverUrl
+              ? `<img src="${coverUrl}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=placeholder>${placeholderLetter}</span>';this.parentElement.style='${placeholderStyle}'">`
+              : `<span class="placeholder">${placeholderLetter}</span>`
           }
+          ${g.isInstalled ? '<span class="card-installed"></span>' : ""}
         </div>
         <div class="card-body">
-          <div class="card-title">${esc(g.name)}</div>
+          <div class="card-title" title="${esc(g.name)}">${esc(g.name)}</div>
           <div class="card-meta">
-            ${g.source ? '<span class="badge" style="background:' + srcColor + '">' + esc(g.source) + "</span>" : ""}
-            ${g.playtime ? '<span class="playtime">' + formatPlaytime(g.playtime) + "</span>" : ""}
-            ${g.isInstalled ? '<span class="installed-dot" title="Installed"></span>' : ""}
+            ${g.source ? `<span class="badge" style="background:${srcColor}">${esc(g.source)}</span>` : ""}
             ${g.favorite ? '<span class="fav-star">*</span>' : ""}
+            ${g.playtime ? `<span class="playtime">${formatPlaytime(g.playtime)}</span>` : ""}
           </div>
         </div>
       </div>
@@ -229,13 +250,16 @@ function renderGames(games: Game[]) {
 function showDetail(game: Game) {
   const overlay = document.getElementById("detailOverlay")!;
   const content = document.getElementById("detailContent")!;
-  const imgUrl = getSteamImg(game);
+  const headerUrl = getSteamHeaderUrl(game);
 
   let html = "";
-  if (imgUrl) {
-    html += `<img class="detail-hero" src="${imgUrl}" alt="">`;
+  if (headerUrl) {
+    html += `<img class="detail-hero" src="${headerUrl}" alt="">`;
   }
   html += `<h2>${esc(game.name)}</h2>`;
+
+  // Launch button
+  html += `<button class="launch-btn" data-game-id="${esc(game.id)}">&#9654; Launch Game</button>`;
 
   const rows: [string, string][] = [
     ["Source", game.source || "Unknown"],
@@ -271,18 +295,48 @@ function showDetail(game: Game) {
 
   if (game.categories?.length) {
     html +=
-      '<div style="margin-top:8px;font-size:12px;color:#8891a5">Categories: ' +
+      '<div style="margin-top:6px;font-size:10px;color:#5a6378">Categories: ' +
       game.categories.map(esc).join(", ") +
       "</div>";
   }
 
   if (game.description) {
-    const clean = game.description.replace(/<[^>]+>/g, "").substring(0, 500);
-    html += `<div style="margin-top:16px;background:#1a1f2e;border-radius:10px;padding:14px;font-size:14px;line-height:1.6;color:#c0c8d8;border:1px solid #252b3d">${esc(clean)}</div>`;
+    const clean = game.description.replace(/<[^>]+>/g, "").substring(0, 400);
+    html += `<div style="margin-top:10px;background:#1a1f2e;border-radius:6px;padding:10px;font-size:12px;line-height:1.5;color:#8891a5;border:1px solid #252b3d">${esc(clean)}</div>`;
   }
 
   content.innerHTML = html;
   overlay.classList.add("active");
+
+  // Wire up launch button
+  const launchBtn = content.querySelector(".launch-btn") as HTMLButtonElement;
+  if (launchBtn) {
+    launchBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const gameId = launchBtn.dataset.gameId;
+      if (!gameId) return;
+      launchBtn.classList.add("launching");
+      launchBtn.textContent = "Launching...";
+      try {
+        await app.callServerTool({
+          name: "launch_game",
+          arguments: { gameId },
+        });
+        launchBtn.textContent = "Launched!";
+        setTimeout(() => {
+          launchBtn.classList.remove("launching");
+          launchBtn.innerHTML = "&#9654; Launch Game";
+        }, 2000);
+      } catch (err) {
+        console.error("Failed to launch game:", err);
+        launchBtn.textContent = "Launch failed";
+        launchBtn.classList.remove("launching");
+        setTimeout(() => {
+          launchBtn.innerHTML = "&#9654; Launch Game";
+        }, 2000);
+      }
+    });
+  }
 }
 
 document.getElementById("detailClose")?.addEventListener("click", () => {
