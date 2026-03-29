@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="plug" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3dffe0"/>
+      <stop offset="100%" stop-color="#3d8bff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#12101f"/>
+
+  <!-- Two big angle brackets: < > like an API tag, with a plug/link in the middle -->
+
+  <!-- < left bracket -->
+  <polyline points="190,140 70,256 190,372"
+    fill="none" stroke="#ff3d6a" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- > right bracket -->
+  <polyline points="322,140 442,256 322,372"
+    fill="none" stroke="url(#plug)" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Center dot — connection point -->
+  <circle cx="256" cy="256" r="30" fill="#ffffff"/>
+</svg>
