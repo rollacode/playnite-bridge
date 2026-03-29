@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "playnite": {
+      "command": "node",
+      "args": ["C:/Developer/playnite-categorizer/mcp/dist/index.js"],
+      "env": {
+        "PLAYNITE_URL": "http://localhost:19821"
+      }
+    }
+  }
+}
