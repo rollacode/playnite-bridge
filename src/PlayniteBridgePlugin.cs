@@ -400,7 +400,6 @@ namespace PlayniteBridge
             // Games - collection
             if (path == "/api/games" && method == "GET") return HandleGetGames(req);
             if (path == "/api/games/missing-art" && method == "GET") return HandleGetMissingArt();
-            if (path == "/api/games/duplicates" && method == "GET") return HandleGetDuplicates();
             if (path == "/api/games/query" && method == "POST") return HandleQueryGames(req);
             if (path == "/api/games" && method == "POST") return HandleCreateGame(req);
 
@@ -493,12 +492,6 @@ namespace PlayniteBridge
             // Plugins
             if (path == "/api/plugins" && method == "GET") return HandleGetPlugins();
 
-            // Batch
-            if (path == "/api/batch" && method == "POST") return HandleBatch(req);
-
-            // Analytics
-            if (path == "/api/analytics" && method == "GET") return HandleAnalytics(req);
-
             // Eval
             if (path == "/api/eval" && method == "POST") return HandleEval(req);
 
@@ -536,8 +529,7 @@ namespace PlayniteBridge
                     "PUT    /api/games/{id}/status        Set completion status",
                     "POST   /api/games/{id}/fetch-art     Fetch missing artwork",
                     "GET    /api/games/missing-art        Games missing artwork",
-                    "GET    /api/games/duplicates         Games owned on multiple platforms",
-                    "POST   /api/games/query              Advanced game query with filters & groupBy",
+                    "POST   /api/games/query              Advanced query with filters & groupBy",
                     "GET    /api/games/{id}/achievements  Achievements (SuccessStory)",
                     "GET    /api/games/{id}/activity      Play sessions (GameActivity)",
                     "GET    /api/categories               All categories",
@@ -570,8 +562,6 @@ namespace PlayniteBridge
                     "GET    /api/stats                    Library statistics",
                     "POST   /api/notifications            Show notification",
                     "GET    /api/plugins                  Loaded/installed plugins",
-                    "POST   /api/batch                    Execute multiple API calls",
-                    "GET    /api/analytics                Full library analytics",
                     "POST   /api/auth/rotate              Rotate API token",
                     "GET    /api/skill.md                 Get AI skill file"
                 }
@@ -1598,129 +1588,6 @@ namespace PlayniteBridge
                 default:
                     return Error(400, "Invalid groupBy. Use: genre, developer, publisher, source, platform, year, completionStatus");
             }
-        }
-
-        private object HandleGetDuplicates()
-        {
-            return PlayniteApi.Database.Games
-                .Where(g => !g.Hidden)
-                .GroupBy(g => g.Name)
-                .Where(grp => grp.Count() > 1)
-                .OrderByDescending(grp => grp.Count())
-                .Select(grp => new
-                {
-                    name = grp.Key,
-                    copies = grp.Count(),
-                    sources = grp.Select(g => g.Source != null ? g.Source.Name : "Unknown").Distinct().ToList(),
-                    totalPlaytimeHours = grp.Sum(g => (long)(g.Playtime / 3600)),
-                    games = grp.Select(g => new
-                    {
-                        id = g.Id.ToString(),
-                        source = g.Source != null ? g.Source.Name : "Unknown",
-                        installed = g.IsInstalled,
-                        playtimeHours = g.Playtime / 3600
-                    }).ToList()
-                }).ToList();
-        }
-
-        private object HandleBatch(HttpListenerRequest req)
-        {
-            var body = ParseBody(req);
-            var requests = body.GetValueOrNull("requests") as ArrayList;
-            if (requests == null || requests.Count == 0)
-                return Error(400, "Missing 'requests' array");
-            if (requests.Count > 50)
-                return Error(400, "Max 50 requests per batch");
-
-            var results = new List<object>();
-            foreach (Dictionary<string, object> r in requests)
-            {
-                var method = (r.GetValueOrNull("method") as string ?? "GET").ToUpper();
-                var path = r.GetValueOrNull("path") as string;
-                if (string.IsNullOrEmpty(path))
-                {
-                    results.Add(new { error = "Missing path" });
-                    continue;
-                }
-
-                try
-                {
-                    // Build a fake request by calling our HTTP API internally
-                    var url = "http://localhost:" + HttpPort + path;
-                    var webReq = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
-                    webReq.Method = method;
-                    webReq.Headers["Authorization"] = "Bearer " + _apiToken;
-                    webReq.Timeout = 10000;
-
-                    if (r.ContainsKey("body") && r["body"] != null)
-                    {
-                        webReq.ContentType = "application/json; charset=utf-8";
-                        var bodyBytes = Encoding.UTF8.GetBytes(_json.Serialize(r["body"]));
-                        using (var stream = webReq.GetRequestStream())
-                            stream.Write(bodyBytes, 0, bodyBytes.Length);
-                    }
-
-                    using (var resp = (System.Net.HttpWebResponse)webReq.GetResponse())
-                    using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
-                    {
-                        var responseBody = sr.ReadToEnd();
-                        results.Add(new { status = (int)resp.StatusCode, data = _json.Deserialize<object>(responseBody) });
-                    }
-                }
-                catch (System.Net.WebException wex)
-                {
-                    if (wex.Response is System.Net.HttpWebResponse errResp)
-                    {
-                        using (var sr = new StreamReader(errResp.GetResponseStream(), Encoding.UTF8))
-                            results.Add(new { status = (int)errResp.StatusCode, data = _json.Deserialize<object>(sr.ReadToEnd()) });
-                    }
-                    else
-                    {
-                        results.Add(new { status = 500, error = wex.Message });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    results.Add(new { status = 500, error = ex.Message });
-                }
-            }
-
-            return new { results };
-        }
-
-        private object HandleAnalytics(HttpListenerRequest req)
-        {
-            var games = PlayniteApi.Database.Games.Where(g => !g.Hidden).ToList();
-            var played = games.Where(g => g.Playtime > 0).ToList();
-
-            return new
-            {
-                library = new
-                {
-                    totalGames = games.Count,
-                    installed = games.Count(g => g.IsInstalled),
-                    played = played.Count,
-                    neverPlayed = games.Count - played.Count,
-                    totalPlaytimeHours = played.Sum(g => (long)(g.Playtime / 3600)),
-                    avgPlaytimeHours = played.Count > 0 ? Math.Round(played.Average(g => (double)g.Playtime / 3600), 1) : 0
-                },
-                bySource = games.GroupBy(g => g.Source != null ? g.Source.Name : "Unknown")
-                    .Select(grp => new { source = grp.Key, count = grp.Count(), hours = grp.Sum(g => (long)(g.Playtime / 3600)) })
-                    .OrderByDescending(x => x.hours).ToList(),
-                topGenres = games.Where(g => g.Genres != null).SelectMany(g => g.Genres.Select(x => new { genre = x.Name, hours = (long)(g.Playtime / 3600) }))
-                    .GroupBy(x => x.genre).Select(grp => new { genre = grp.Key, count = grp.Count(), hours = grp.Sum(x => x.hours) })
-                    .OrderByDescending(x => x.hours).Take(15).ToList(),
-                topDevelopers = played.Where(g => g.Developers != null).SelectMany(g => g.Developers.Select(x => new { dev = x.Name, hours = (long)(g.Playtime / 3600) }))
-                    .GroupBy(x => x.dev).Select(grp => new { developer = grp.Key, count = grp.Count(), hours = grp.Sum(x => x.hours) })
-                    .OrderByDescending(x => x.hours).Take(15).ToList(),
-                topGames = played.OrderByDescending(g => g.Playtime).Take(20)
-                    .Select(g => new { name = g.Name, source = g.Source != null ? g.Source.Name : "?", hours = g.Playtime / 3600 }).ToList(),
-                byYear = games.Where(g => g.ReleaseDate != null && g.ReleaseDate.Value.Year < 9000)
-                    .GroupBy(g => g.ReleaseDate.Value.Year)
-                    .Select(grp => new { year = grp.Key, count = grp.Count() })
-                    .OrderByDescending(x => x.year).Take(15).ToList(),
-                duplicates = games.GroupBy(g => g.Name).Where(grp => grp.Count() > 1).Count()
-            };
         }
 
         #endregion

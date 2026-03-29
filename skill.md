@@ -111,19 +111,18 @@ Send a JSON body with any combination of fields to update:
 
 ### Advanced Query — POST /api/games/query
 
-Powerful game search with filters, sorting, and grouping. Send a JSON body:
+The main power endpoint. Combine any filters freely, add sorting, or use `groupBy` for analytics. All filters are optional — use any combination.
 
 ```json
 {
   "q": "search text",
-  "genres": ["RPG", "Strategy"],
+  "genres": ["RPG"],
   "developers": ["CD Projekt RED"],
   "source": "Steam",
   "playtimeMin": 3600,
   "playtimeMax": 360000,
   "releaseYearMin": 2020,
   "installed": true,
-  "uncategorized": true,
   "sort": "playtime",
   "descending": true,
   "groupBy": "developer",
@@ -131,33 +130,27 @@ Powerful game search with filters, sorting, and grouping. Send a JSON body:
 }
 ```
 
-**Filters:** `q`, `installed`, `favorite`, `hidden`, `playtimeMin/Max` (seconds), `releaseYearMin/Max`, `genres`, `categories`, `tags`, `features`, `developers`, `publishers`, `platforms` (arrays, AND logic), `source`, `completionStatus`, `uncategorized`, `untagged`
+**Filters (all optional, combine freely):**
+- `q` — name search (substring)
+- `installed`, `favorite`, `hidden` — booleans
+- `playtimeMin`, `playtimeMax` — in seconds (3600 = 1 hour)
+- `releaseYearMin`, `releaseYearMax` — release year range
+- `genres`, `categories`, `tags`, `features`, `developers`, `publishers`, `platforms` — arrays of names, AND logic (game must match all)
+- `source`, `completionStatus` — single string
+- `uncategorized`, `untagged` — boolean, games missing these
 
 **Sort:** `name` (default), `playtime`, `added`, `release`, `lastplayed` + `descending: true`
 
-**GroupBy:** `genre`, `developer`, `publisher`, `source`, `platform`, `year`, `completionStatus` — returns `[{group, count, totalHours}]` instead of game list
+**GroupBy:** `genre`, `developer`, `publisher`, `source`, `platform`, `year`, `completionStatus`
+When set, returns `[{group, count, totalHours}]` instead of game list. Great for analytics — "hours by genre", "games by developer", "library by source", etc.
 
-### Duplicates — GET /api/games/duplicates
+**Without groupBy:** returns `{total, offset, limit, games: [...]}`
 
-Games owned on multiple platforms. Returns: `[{name, copies, sources, totalPlaytimeHours, games: [{id, source, installed, playtimeHours}]}]`
-
-### Batch — POST /api/batch
-
-Execute multiple API calls in one request (max 50):
-
-```json
-{"requests": [
-  {"method": "GET", "path": "/api/stats"},
-  {"method": "GET", "path": "/api/games?q=Witcher&limit=3"},
-  {"method": "POST", "path": "/api/games/query", "body": {"genres": ["RPG"], "groupBy": "developer"}}
-]}
-```
-
-Response: `{results: [{status, data}, ...]}`
-
-### Analytics — GET /api/analytics
-
-Full library analytics in one call: library stats, by source, top genres, top developers, top games by playtime, by release year, duplicate count.
+**Examples:**
+- RPGs with 50+ hours: `{"genres": ["RPG"], "playtimeMin": 180000, "sort": "playtime", "descending": true}`
+- Playtime by genre: `{"groupBy": "genre"}`
+- Unplayed installed games: `{"installed": true, "playtimeMax": 0}`
+- 2024 releases by developer: `{"releaseYearMin": 2024, "releaseYearMax": 2024, "groupBy": "developer"}`
 
 ### Plugin Integration
 
