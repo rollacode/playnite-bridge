@@ -1,5 +1,16 @@
 AddonId: PlayniteBridge_f47ac10b
 Packages:
+  - Version: 1.1.0
+    RequiredApiVersion: 6.15.0
+    ReleaseDate: 2026-03-29
+    PackageUrl: https://github.com/rollacode/playnite-bridge/releases/download/v1.1.0/PlayniteBridge_v1.1.0.pext
+    Changelog:
+      - Advanced query endpoint with filters, sorting, and groupBy analytics
+      - SuccessStory achievements integration
+      - GameActivity play sessions integration
+      - Loaded/installed plugins endpoint
+      - SOLID architecture refactor (22 files, 114 unit tests)
+      - AI Skill template updated with new endpoints
   - Version: 1.0.1
     RequiredApiVersion: 6.15.0
     ReleaseDate: 2026-03-29
