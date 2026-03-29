@@ -27,14 +27,54 @@ A [Playnite](https://playnite.link/) plugin that exposes your entire game librar
 
 ## AI Integration
 
-### Quick Start
+There are three ways to connect AI to your game library:
 
-1. In Playnite: **Main Menu > Playnite Bridge > Show API Token** — copy your token
-2. Open [`skill.md`](skill.md) from this repo, paste it into your AI chat
-3. Give the AI your token when it asks
-4. Done — the AI can now manage your game library
+### Option 1: AI Skill File (simplest)
 
-### Using as a Claude Code Skill
+Paste a skill file directly into any AI chat — ChatGPT, Claude, Gemini, etc.
+
+1. In Playnite: **Main Menu > Playnite Bridge > Copy AI Skill to Clipboard**
+2. Paste into your AI chat
+3. Done — the AI can now manage your library
+
+### Option 2: MCP Server (richest)
+
+MCP (Model Context Protocol) server with game card UI. Works with Claude Desktop, ChatGPT, and other MCP-compatible clients.
+
+**Setup:**
+
+1. Get your token: Playnite → **Main Menu > Playnite Bridge > Show API Token**
+2. Build the MCP server:
+   ```bash
+   cd mcp && npm install && npm run build
+   ```
+
+**Claude Desktop** — add to `claude_desktop_config.json` (Settings → Developer → Edit Config):
+```json
+{
+  "mcpServers": {
+    "playnite": {
+      "command": "node",
+      "args": ["C:/path/to/playnite-bridge/mcp/dist/server/stdio-bridge.js"],
+      "env": {
+        "PLAYNITE_URL": "http://<playnite-pc-ip>:19821",
+        "PLAYNITE_TOKEN": "<your-token>"
+      }
+    }
+  }
+}
+```
+
+**ChatGPT Desktop** — start the HTTP server, then add via UI:
+```bash
+cd mcp
+PLAYNITE_TOKEN=<your-token> PLAYNITE_URL=http://<ip>:19821 npm start
+```
+In ChatGPT: Settings → Tools → Add MCP Server → `http://<ip>:3849/mcp`
+
+**Available tools:** `search_games`, `get_game`, `query_games`, `library_stats`, `get_achievements`, `get_activity`, `update_game`, `manage_categories`, `list_collections`
+
+### Option 3: Claude Code Skill
 
 Copy `skill.md` to your Claude Code skills directory:
 
@@ -43,7 +83,7 @@ mkdir -p ~/.claude/skills/playnite-bridge
 cp skill.md ~/.claude/skills/playnite-bridge/SKILL.md
 ```
 
-Then use `/playnite-bridge` in any Claude Code session. Update the token inside the file.
+Then use `/playnite-bridge` in any Claude Code session.
 
 ### Playnite Menu
 

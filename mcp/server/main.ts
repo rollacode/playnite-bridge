@@ -19,22 +19,11 @@ const UI_PATH = join(__dirname, "..", "mcp-app.html");
 // Playnite client (inline to keep server self-contained for compilation)
 // ---------------------------------------------------------------------------
 
-const DEFAULT_AUTH_PATH =
-  "C:/Games/Playnite/ExtensionsData/f47ac10b-58cc-4372-a567-0e02b2c3d479/auth.json";
-
 function resolveToken(): string {
   const envToken = process.env.PLAYNITE_TOKEN;
   if (envToken) return envToken;
-  try {
-    const raw = readFileSync(DEFAULT_AUTH_PATH, "utf-8");
-    const data = JSON.parse(raw) as { token?: string };
-    if (data.token) return data.token;
-  } catch {
-    // Fall through
-  }
   throw new Error(
-    "No Playnite token found. Set PLAYNITE_TOKEN env var or ensure auth.json exists at " +
-      DEFAULT_AUTH_PATH
+    "PLAYNITE_TOKEN env var is required. Get it from Playnite: Main Menu > Playnite Bridge > Show API Token"
   );
 }
 
