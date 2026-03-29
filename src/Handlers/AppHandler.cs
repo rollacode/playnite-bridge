@@ -177,7 +177,8 @@ namespace PlayniteBridge.Handlers
                     "POST   /api/notifications            Show notification",
                     "GET    /api/plugins                  Loaded/installed plugins",
                     "POST   /api/auth/rotate              Rotate API token",
-                    "GET    /api/skill.md                 Get AI skill file"
+                    "GET    /api/skill.md                 Get AI skill file",
+                    "POST   /api/eval                     Execute C# code"
                 }
             };
         }
