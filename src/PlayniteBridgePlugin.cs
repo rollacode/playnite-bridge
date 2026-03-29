@@ -11,6 +11,7 @@ using PlayniteBridge.Handlers;
 using PlayniteBridge.Helpers;
 using PlayniteBridge.Server;
 using PlayniteBridge.Services;
+using PlayniteBridge.Settings;
 
 namespace PlayniteBridge
 {
@@ -22,10 +23,14 @@ namespace PlayniteBridge
         private HttpApiServer _server;
         private AuthHandler _auth;
         private AutomationHandler _automation;
+        private PluginSettingsViewModel _settingsViewModel;
 
         public override Guid Id => Guid.Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479");
 
-        public PlayniteBridgePlugin(IPlayniteAPI api) : base(api) { }
+        public PlayniteBridgePlugin(IPlayniteAPI api) : base(api)
+        {
+            _settingsViewModel = new PluginSettingsViewModel(this);
+        }
 
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
@@ -83,88 +88,40 @@ namespace PlayniteBridge
             base.Dispose();
         }
 
+        public override ISettings GetSettings(bool firstRunSettings) => _settingsViewModel;
+
+        public override System.Windows.Controls.UserControl GetSettingsView(bool firstRunSettings)
+        {
+            return new PluginSettingsView(new SettingsViewContext
+            {
+                ViewModel = _settingsViewModel,
+                GetToken = () => _auth?.ApiToken,
+                GetIsNetworkBound = () => _server?.IsNetworkBound ?? false,
+                GenerateSkillMd = () => GenerateSkillMd(),
+                GetPluginDataPath = () => GetPluginUserDataPath(),
+                GetLocalIp = () => NetworkHelper.GetLocalIpAddress(),
+                EnableNetworkAccess = () => EnableNetworkAccess(),
+                RotateToken = () => _auth?.RotateToken(),
+                PlayniteApi = PlayniteApi,
+                Port = HttpPort
+            });
+        }
+
         public override IEnumerable<MainMenuItem> GetMainMenuItems(GetMainMenuItemsArgs args)
         {
-            yield return MenuItem("Copy AI Skill to Clipboard", _ =>
+            yield return new MainMenuItem
             {
-                System.Windows.Clipboard.SetText(GenerateSkillMd());
-                PlayniteApi.Dialogs.ShowMessage(
-                    "AI Skill copied to clipboard!\n\nPaste it into your AI chat to give the AI access to your Playnite library.\n\nThe skill contains your API token \u2014 don't share it publicly.",
-                    "Playnite Bridge");
-            });
-
-            yield return MenuItem("Open AI Skill File", _ =>
-            {
-                var skillPath = Path.Combine(GetPluginUserDataPath(), "skill.md");
-                File.WriteAllText(skillPath, GenerateSkillMd(), Encoding.UTF8);
-                System.Diagnostics.Process.Start(skillPath);
-            });
-
-            yield return MenuItem("Show API Token", _ =>
-                PlayniteApi.Dialogs.ShowMessage($"API Token:\n\n{_auth.ApiToken}\n\nUse 'Copy AI Skill' for the full skill file.", "Playnite Bridge"));
-
-            yield return MenuItem("Regenerate API Token", _ =>
-            {
-                var r = PlayniteApi.Dialogs.ShowMessage("Regenerate API token?\n\nThe old token stops working immediately.", "Playnite Bridge", System.Windows.MessageBoxButton.YesNo);
-                if (r == System.Windows.MessageBoxResult.Yes)
+                Description = "Copy AI Skill to Clipboard",
+                MenuSection = "@Playnite Bridge",
+                Action = _ =>
                 {
-                    _auth.RotateToken();
-                    PlayniteApi.Dialogs.ShowMessage($"New token:\n\n{_auth.ApiToken}", "Playnite Bridge");
+                    System.Windows.Clipboard.SetText(GenerateSkillMd());
+                    PlayniteApi.Dialogs.ShowMessage(
+                        "AI Skill copied to clipboard!\n\nPaste it into your AI chat to give the AI access to your Playnite library.\n\nThe skill contains your API token \u2014 don't share it publicly.",
+                        "Playnite Bridge");
                 }
-            });
-
-            yield return MenuItem(_server?.IsNetworkBound == true ? "Network Access \u2713 (already enabled)" : "Enable Network Access", _ =>
-            {
-                if (_server?.IsNetworkBound == true)
-                {
-                    PlayniteApi.Dialogs.ShowMessage("Network access is already enabled.\n\nAPI is accessible from other devices at:\nhttp://<this-pc-ip>:" + HttpPort, "Playnite Bridge");
-                    return;
-                }
-                var r = PlayniteApi.Dialogs.ShowMessage("Allow API access from other devices on your network?\n\nThis will:\n\u2022 Register HTTP port 19821\n\u2022 Add a Windows Firewall rule\n\nWindows will ask for administrator permission.", "Playnite Bridge", System.Windows.MessageBoxButton.YesNo);
-                if (r == System.Windows.MessageBoxResult.Yes)
-                    EnableNetworkAccess();
-            });
-
-            yield return MenuItem("Auto-Categorize All Games (by Genre)", _ => AutoCategorizeByGenre());
-            yield return MenuItem("Auto-Categorize Selected Games", _ => AutoCategorizeSelected());
-            yield return MenuItem("Show Uncategorized Games", _ => ShowUncategorized());
+            };
         }
-
-        #region Menu Helpers
-
-        private MainMenuItem MenuItem(string desc, Action<MainMenuItemActionArgs> action)
-        {
-            return new MainMenuItem { Description = desc, MenuSection = "@Playnite Bridge", Action = action };
-        }
-
-        private void AutoCategorizeByGenre()
-        {
-            var uncategorized = PlayniteApi.Database.Games.Where(g => g.CategoryIds == null || g.CategoryIds.Count == 0).ToList();
-            if (uncategorized.Count == 0) { PlayniteApi.Dialogs.ShowMessage("All games are already categorized!", "Playnite Bridge"); return; }
-            var r = PlayniteApi.Dialogs.ShowMessage($"Found {uncategorized.Count} uncategorized games. Categorize by primary genre?", "Playnite Bridge", System.Windows.MessageBoxButton.YesNo);
-            if (r != System.Windows.MessageBoxResult.Yes) return;
-            var count = _automation.CategorizeGames(uncategorized);
-            PlayniteApi.Dialogs.ShowMessage($"Categorized {count} games.", "Playnite Bridge");
-        }
-
-        private void AutoCategorizeSelected()
-        {
-            var selected = PlayniteApi.MainView.SelectedGames?.ToList();
-            if (selected == null || selected.Count == 0) { PlayniteApi.Dialogs.ShowMessage("No games selected.", "Playnite Bridge"); return; }
-            var count = _automation.CategorizeGames(selected);
-            PlayniteApi.Dialogs.ShowMessage($"Categorized {count} out of {selected.Count} games.", "Playnite Bridge");
-        }
-
-        private void ShowUncategorized()
-        {
-            var uncategorized = PlayniteApi.Database.Games.Where(g => g.CategoryIds == null || g.CategoryIds.Count == 0).Select(g => g.Name).OrderBy(n => n).ToList();
-            PlayniteApi.Dialogs.ShowMessage(
-                uncategorized.Count == 0 ? "All games are categorized!"
-                : $"Uncategorized ({uncategorized.Count}):\n\n{string.Join("\n", uncategorized.Take(50))}" + (uncategorized.Count > 50 ? $"\n... and {uncategorized.Count - 50} more" : ""),
-                "Playnite Bridge");
-        }
-
-        #endregion
 
         #region Network
 
