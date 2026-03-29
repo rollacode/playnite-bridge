@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playnite Bridge</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0f1219;
+    color: #e4e8f0;
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #ff3d6a, #53d8fb);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .stats-bar {
+    font-size: 13px;
+    color: #8891a5;
+    margin-bottom: 16px;
+  }
+
+  /* Game Grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: #1a1f2e;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #252b3d;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(83, 216, 251, 0.25);
+    box-shadow: 0 8px 24px rgba(83, 216, 251, 0.08);
+  }
+  .card-img {
+    width: 100%;
+    aspect-ratio: 460/215;
+    background: #252b3d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .card-img .placeholder {
+    font-size: 32px;
+    color: #3a4260;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  .card-body {
+    padding: 12px 14px;
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .playtime {
+    font-size: 12px;
+    color: #8891a5;
+  }
+  .installed-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #3dffe0;
+    display: inline-block;
+  }
+  .fav-star { color: #ffcc00; font-size: 14px; }
+
+  /* KPI row for stats */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: #1a1f2e;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #252b3d;
+  }
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #53d8fb;
+    line-height: 1.1;
+  }
+  .kpi-label {
+    font-size: 12px;
+    color: #8891a5;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Bar chart */
+  .section { margin-bottom: 24px; }
+  .section h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #c0c8d8;
+  }
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .bar-label {
+    font-size: 13px;
+    min-width: 120px;
+    text-align: right;
+    color: #8891a5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bar-track {
+    flex: 1;
+    height: 22px;
+    background: #1a1f2e;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    min-width: 2px;
+    transition: width 0.5s ease;
+  }
+  .bar-fill.g1 { background: linear-gradient(90deg, #ff3d6a, #ff6b8a); }
+  .bar-fill.g2 { background: linear-gradient(90deg, #53d8fb, #8be5fc); }
+  .bar-fill.g3 { background: linear-gradient(90deg, #3dffe0, #7ffff0); }
+  .bar-fill.g4 { background: linear-gradient(90deg, #ff9f43, #ffc078); }
+  .bar-fill.g5 { background: linear-gradient(90deg, #a55eea, #c99eff); }
+  .bar-count {
+    font-size: 12px;
+    min-width: 40px;
+    color: #8891a5;
+    text-align: right;
+  }
+
+  /* Recent list */
+  .recent-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #1a1f2e;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 6px;
+    border: 1px solid #252b3d;
+  }
+  .recent-name { font-size: 14px; font-weight: 500; }
+  .recent-meta { font-size: 12px; color: #8891a5; }
+
+  /* Detail overlay */
+  .detail-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 18, 25, 0.92);
+    z-index: 100;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .detail-overlay.active { display: block; }
+  .detail-close {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    background: #252b3d;
+    border: 1px solid #3a4260;
+    border-radius: 8px;
+    color: #e4e8f0;
+    font-size: 18px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 101;
+  }
+  .detail-content {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .detail-hero {
+    width: 100%;
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+  .detail-content h2 {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+  .detail-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+  .detail-label {
+    color: #8891a5;
+    min-width: 100px;
+  }
+  .detail-value { color: #e4e8f0; }
+
+  /* Achievement progress */
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #252b3d;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff3d6a, #3dffe0);
+    border-radius: 4px;
+  }
+
+  /* Tags */
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag {
+    background: #252b3d;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #c0c8d8;
+    border: 1px solid #3a4260;
+  }
+
+  .loading { text-align: center; padding: 40px; color: #8891a5; font-size: 15px; }
+  .empty { text-align: center; padding: 40px; color: #8891a5; }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Connecting to Playnite Bridge...</div></div>
+<div class="detail-overlay" id="detailOverlay">
+  <button class="detail-close" id="detailClose">&times;</button>
+  <div class="detail-content" id="detailContent"></div>
+</div>
+<script type="module" src="/src/mcp-app.ts"></script>
+</body>
+</html>
