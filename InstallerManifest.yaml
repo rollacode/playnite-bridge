@@ -1,0 +1,19 @@
+AddonId: PlayniteBridge_f47ac10b
+Packages:
+  - Version: 1.0.1
+    RequiredApiVersion: 6.15.0
+    ReleaseDate: 2026-03-29
+    PackageUrl: https://github.com/rollacode/playnite-bridge/releases/download/v1.0.1/PlayniteBridge_v1.0.1.pext
+    Changelog:
+      - AI Skill uses LAN IP when network access is enabled
+      - Skill template is now a single source of truth (embedded resource)
+  - Version: 1.0.0
+    RequiredApiVersion: 6.15.0
+    ReleaseDate: 2026-03-28
+    PackageUrl: https://github.com/rollacode/playnite-bridge/releases/download/v1.0.0/PlayniteBridge_v1.0.0.pext
+    Changelog:
+      - Initial release
+      - 50+ REST endpoints covering the entire Playnite SDK
+      - Bearer token auth with rotation
+      - Network access support
+      - AI Skill file generation
