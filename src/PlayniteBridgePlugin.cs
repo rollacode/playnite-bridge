@@ -400,6 +400,8 @@ namespace PlayniteBridge
             // Games - collection
             if (path == "/api/games" && method == "GET") return HandleGetGames(req);
             if (path == "/api/games/missing-art" && method == "GET") return HandleGetMissingArt();
+            if (path == "/api/games/duplicates" && method == "GET") return HandleGetDuplicates();
+            if (path == "/api/games/query" && method == "POST") return HandleQueryGames(req);
             if (path == "/api/games" && method == "POST") return HandleCreateGame(req);
 
             // Games - single resource
@@ -491,6 +493,12 @@ namespace PlayniteBridge
             // Plugins
             if (path == "/api/plugins" && method == "GET") return HandleGetPlugins();
 
+            // Batch
+            if (path == "/api/batch" && method == "POST") return HandleBatch(req);
+
+            // Analytics
+            if (path == "/api/analytics" && method == "GET") return HandleAnalytics(req);
+
             // Eval
             if (path == "/api/eval" && method == "POST") return HandleEval(req);
 
@@ -528,6 +536,10 @@ namespace PlayniteBridge
                     "PUT    /api/games/{id}/status        Set completion status",
                     "POST   /api/games/{id}/fetch-art     Fetch missing artwork",
                     "GET    /api/games/missing-art        Games missing artwork",
+                    "GET    /api/games/duplicates         Games owned on multiple platforms",
+                    "POST   /api/games/query              Advanced game query with filters & groupBy",
+                    "GET    /api/games/{id}/achievements  Achievements (SuccessStory)",
+                    "GET    /api/games/{id}/activity      Play sessions (GameActivity)",
                     "GET    /api/categories               All categories",
                     "POST   /api/categories               Create category",
                     "GET    /api/genres                   All genres",
@@ -557,6 +569,9 @@ namespace PlayniteBridge
                     "GET    /api/app/addons               Installed addons",
                     "GET    /api/stats                    Library statistics",
                     "POST   /api/notifications            Show notification",
+                    "GET    /api/plugins                  Loaded/installed plugins",
+                    "POST   /api/batch                    Execute multiple API calls",
+                    "GET    /api/analytics                Full library analytics",
                     "POST   /api/auth/rotate              Rotate API token",
                     "GET    /api/skill.md                 Get AI skill file"
                 }
@@ -1437,6 +1452,275 @@ namespace PlayniteBridge
             if (list == null || list.Count == 0) return null;
             var first = list[0] as Dictionary<string, object>;
             return first?.GetValueOrNull("image_id")?.ToString();
+        }
+
+        #endregion
+
+        #region Handlers - Query, Duplicates, Batch, Analytics
+
+        private object HandleQueryGames(HttpListenerRequest req)
+        {
+            var body = ParseBody(req);
+            IEnumerable<Game> games = PlayniteApi.Database.Games;
+
+            // Text search
+            var q = body.GetValueOrNull("q") as string;
+            if (!string.IsNullOrEmpty(q))
+                games = games.Where(g => g.Name != null && g.Name.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0);
+
+            // Boolean filters
+            if (body.ContainsKey("installed") && body["installed"] is bool inst) games = inst ? games.Where(g => g.IsInstalled) : games.Where(g => !g.IsInstalled);
+            if (body.ContainsKey("favorite") && body["favorite"] is bool fav) games = fav ? games.Where(g => g.Favorite) : games.Where(g => !g.Favorite);
+            if (body.ContainsKey("hidden") && body["hidden"] is bool hid) games = hid ? games.Where(g => g.Hidden) : games.Where(g => !g.Hidden);
+            else games = games.Where(g => !g.Hidden);
+
+            // Playtime range (seconds)
+            if (body.ContainsKey("playtimeMin"))
+            {
+                var min = Convert.ToUInt64(body["playtimeMin"]);
+                games = games.Where(g => g.Playtime >= min);
+            }
+            if (body.ContainsKey("playtimeMax"))
+            {
+                var max = Convert.ToUInt64(body["playtimeMax"]);
+                games = games.Where(g => g.Playtime <= max);
+            }
+
+            // Collection filters (arrays of names, AND logic within same field)
+            games = ApplyListFilter(games, body, "genres", g => g.Genres);
+            games = ApplyListFilter(games, body, "categories", g => g.Categories);
+            games = ApplyListFilter(games, body, "tags", g => g.Tags);
+            games = ApplyListFilter(games, body, "features", g => g.Features);
+            games = ApplyListFilter(games, body, "developers", g => g.Developers);
+            games = ApplyListFilter(games, body, "publishers", g => g.Publishers);
+            games = ApplyListFilter(games, body, "platforms", g => g.Platforms);
+
+            // Source filter
+            var source = body.GetValueOrNull("source") as string;
+            if (!string.IsNullOrEmpty(source))
+                games = games.Where(g => g.Source != null && g.Source.Name.Equals(source, StringComparison.OrdinalIgnoreCase));
+
+            // Completion status
+            var status = body.GetValueOrNull("completionStatus") as string;
+            if (!string.IsNullOrEmpty(status))
+                games = games.Where(g => g.CompletionStatus != null && g.CompletionStatus.Name.Equals(status, StringComparison.OrdinalIgnoreCase));
+
+            // Release year range
+            if (body.ContainsKey("releaseYearMin"))
+                games = games.Where(g => g.ReleaseDate != null && g.ReleaseDate.Value.Year >= Convert.ToInt32(body["releaseYearMin"]));
+            if (body.ContainsKey("releaseYearMax"))
+                games = games.Where(g => g.ReleaseDate != null && g.ReleaseDate.Value.Year <= Convert.ToInt32(body["releaseYearMax"]));
+
+            // Uncategorized / untagged
+            if (body.ContainsKey("uncategorized") && (bool)body["uncategorized"])
+                games = games.Where(g => g.CategoryIds == null || g.CategoryIds.Count == 0);
+            if (body.ContainsKey("untagged") && (bool)body["untagged"])
+                games = games.Where(g => g.TagIds == null || g.TagIds.Count == 0);
+
+            // Sorting
+            var sort = (body.GetValueOrNull("sort") as string ?? "name").ToLower();
+            var desc = body.ContainsKey("descending") && body["descending"] is bool d && d;
+            IOrderedEnumerable<Game> ordered;
+            switch (sort)
+            {
+                case "playtime": ordered = desc ? games.OrderByDescending(g => g.Playtime) : games.OrderBy(g => g.Playtime); break;
+                case "added": ordered = desc ? games.OrderByDescending(g => g.Added) : games.OrderBy(g => g.Added); break;
+                case "release": ordered = desc ? games.OrderByDescending(g => g.ReleaseDate) : games.OrderBy(g => g.ReleaseDate); break;
+                case "lastplayed": ordered = desc ? games.OrderByDescending(g => g.LastActivity) : games.OrderBy(g => g.LastActivity); break;
+                default: ordered = desc ? games.OrderByDescending(g => g.Name) : games.OrderBy(g => g.Name); break;
+            }
+
+            // GroupBy support
+            var groupBy = body.GetValueOrNull("groupBy") as string;
+            if (!string.IsNullOrEmpty(groupBy))
+                return GroupGames(ordered, groupBy);
+
+            // Pagination
+            int offset = 0, limit = 500;
+            if (body.ContainsKey("offset")) offset = Math.Max(0, Convert.ToInt32(body["offset"]));
+            if (body.ContainsKey("limit")) limit = Math.Min(Math.Max(Convert.ToInt32(body["limit"]), 1), 5000);
+
+            var total = 0;
+            try { total = ordered.Count(); } catch { }
+            var page = ordered.Skip(offset).Take(limit);
+
+            return new { total, offset, limit, games = page.Select(g => SerializeGameCompact(g)).ToList() };
+        }
+
+        private IEnumerable<Game> ApplyListFilter(IEnumerable<Game> games, Dictionary<string, object> body, string key, Func<Game, IEnumerable<DatabaseObject>> accessor)
+        {
+            var val = body.GetValueOrNull(key);
+            if (val == null) return games;
+            var names = new List<string>();
+            if (val is string s) names.Add(s);
+            else if (val is ArrayList al) foreach (var item in al) names.Add(item.ToString());
+            if (names.Count == 0) return games;
+            return games.Where(g =>
+            {
+                var coll = accessor(g);
+                if (coll == null) return false;
+                return names.All(n => coll.Any(x => x.Name.Equals(n, StringComparison.OrdinalIgnoreCase)));
+            });
+        }
+
+        private object GroupGames(IEnumerable<Game> games, string groupBy)
+        {
+            switch (groupBy.ToLower())
+            {
+                case "genre":
+                    return games.Where(g => g.Genres != null).SelectMany(g => g.Genres.Select(x => new { key = x.Name, game = g }))
+                        .GroupBy(x => x.key).Select(grp => new { group = grp.Key, count = grp.Count(), totalHours = grp.Sum(x => (long)(x.game.Playtime / 3600)) })
+                        .OrderByDescending(x => x.totalHours).ToList();
+                case "developer":
+                    return games.Where(g => g.Developers != null).SelectMany(g => g.Developers.Select(x => new { key = x.Name, game = g }))
+                        .GroupBy(x => x.key).Select(grp => new { group = grp.Key, count = grp.Count(), totalHours = grp.Sum(x => (long)(x.game.Playtime / 3600)) })
+                        .OrderByDescending(x => x.totalHours).ToList();
+                case "publisher":
+                    return games.Where(g => g.Publishers != null).SelectMany(g => g.Publishers.Select(x => new { key = x.Name, game = g }))
+                        .GroupBy(x => x.key).Select(grp => new { group = grp.Key, count = grp.Count(), totalHours = grp.Sum(x => (long)(x.game.Playtime / 3600)) })
+                        .OrderByDescending(x => x.totalHours).ToList();
+                case "source":
+                    return games.GroupBy(g => g.Source != null ? g.Source.Name : "Unknown")
+                        .Select(grp => new { group = grp.Key, count = grp.Count(), totalHours = grp.Sum(g => (long)(g.Playtime / 3600)) })
+                        .OrderByDescending(x => x.totalHours).ToList();
+                case "platform":
+                    return games.Where(g => g.Platforms != null).SelectMany(g => g.Platforms.Select(x => new { key = x.Name, game = g }))
+                        .GroupBy(x => x.key).Select(grp => new { group = grp.Key, count = grp.Count(), totalHours = grp.Sum(x => (long)(x.game.Playtime / 3600)) })
+                        .OrderByDescending(x => x.totalHours).ToList();
+                case "year":
+                    return games.Where(g => g.ReleaseDate != null).GroupBy(g => g.ReleaseDate.Value.Year)
+                        .Select(grp => new { group = grp.Key.ToString(), count = grp.Count(), totalHours = grp.Sum(g => (long)(g.Playtime / 3600)) })
+                        .OrderByDescending(x => x.group).ToList();
+                case "completionstatus":
+                    return games.GroupBy(g => g.CompletionStatus != null ? g.CompletionStatus.Name : "Not Set")
+                        .Select(grp => new { group = grp.Key, count = grp.Count(), totalHours = grp.Sum(g => (long)(g.Playtime / 3600)) })
+                        .OrderByDescending(x => x.totalHours).ToList();
+                default:
+                    return Error(400, "Invalid groupBy. Use: genre, developer, publisher, source, platform, year, completionStatus");
+            }
+        }
+
+        private object HandleGetDuplicates()
+        {
+            return PlayniteApi.Database.Games
+                .Where(g => !g.Hidden)
+                .GroupBy(g => g.Name)
+                .Where(grp => grp.Count() > 1)
+                .OrderByDescending(grp => grp.Count())
+                .Select(grp => new
+                {
+                    name = grp.Key,
+                    copies = grp.Count(),
+                    sources = grp.Select(g => g.Source != null ? g.Source.Name : "Unknown").Distinct().ToList(),
+                    totalPlaytimeHours = grp.Sum(g => (long)(g.Playtime / 3600)),
+                    games = grp.Select(g => new
+                    {
+                        id = g.Id.ToString(),
+                        source = g.Source != null ? g.Source.Name : "Unknown",
+                        installed = g.IsInstalled,
+                        playtimeHours = g.Playtime / 3600
+                    }).ToList()
+                }).ToList();
+        }
+
+        private object HandleBatch(HttpListenerRequest req)
+        {
+            var body = ParseBody(req);
+            var requests = body.GetValueOrNull("requests") as ArrayList;
+            if (requests == null || requests.Count == 0)
+                return Error(400, "Missing 'requests' array");
+            if (requests.Count > 50)
+                return Error(400, "Max 50 requests per batch");
+
+            var results = new List<object>();
+            foreach (Dictionary<string, object> r in requests)
+            {
+                var method = (r.GetValueOrNull("method") as string ?? "GET").ToUpper();
+                var path = r.GetValueOrNull("path") as string;
+                if (string.IsNullOrEmpty(path))
+                {
+                    results.Add(new { error = "Missing path" });
+                    continue;
+                }
+
+                try
+                {
+                    // Build a fake request by calling our HTTP API internally
+                    var url = "http://localhost:" + HttpPort + path;
+                    var webReq = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
+                    webReq.Method = method;
+                    webReq.Headers["Authorization"] = "Bearer " + _apiToken;
+                    webReq.Timeout = 10000;
+
+                    if (r.ContainsKey("body") && r["body"] != null)
+                    {
+                        webReq.ContentType = "application/json; charset=utf-8";
+                        var bodyBytes = Encoding.UTF8.GetBytes(_json.Serialize(r["body"]));
+                        using (var stream = webReq.GetRequestStream())
+                            stream.Write(bodyBytes, 0, bodyBytes.Length);
+                    }
+
+                    using (var resp = (System.Net.HttpWebResponse)webReq.GetResponse())
+                    using (var sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                    {
+                        var responseBody = sr.ReadToEnd();
+                        results.Add(new { status = (int)resp.StatusCode, data = _json.Deserialize<object>(responseBody) });
+                    }
+                }
+                catch (System.Net.WebException wex)
+                {
+                    if (wex.Response is System.Net.HttpWebResponse errResp)
+                    {
+                        using (var sr = new StreamReader(errResp.GetResponseStream(), Encoding.UTF8))
+                            results.Add(new { status = (int)errResp.StatusCode, data = _json.Deserialize<object>(sr.ReadToEnd()) });
+                    }
+                    else
+                    {
+                        results.Add(new { status = 500, error = wex.Message });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    results.Add(new { status = 500, error = ex.Message });
+                }
+            }
+
+            return new { results };
+        }
+
+        private object HandleAnalytics(HttpListenerRequest req)
+        {
+            var games = PlayniteApi.Database.Games.Where(g => !g.Hidden).ToList();
+            var played = games.Where(g => g.Playtime > 0).ToList();
+
+            return new
+            {
+                library = new
+                {
+                    totalGames = games.Count,
+                    installed = games.Count(g => g.IsInstalled),
+                    played = played.Count,
+                    neverPlayed = games.Count - played.Count,
+                    totalPlaytimeHours = played.Sum(g => (long)(g.Playtime / 3600)),
+                    avgPlaytimeHours = played.Count > 0 ? Math.Round(played.Average(g => (double)g.Playtime / 3600), 1) : 0
+                },
+                bySource = games.GroupBy(g => g.Source != null ? g.Source.Name : "Unknown")
+                    .Select(grp => new { source = grp.Key, count = grp.Count(), hours = grp.Sum(g => (long)(g.Playtime / 3600)) })
+                    .OrderByDescending(x => x.hours).ToList(),
+                topGenres = games.Where(g => g.Genres != null).SelectMany(g => g.Genres.Select(x => new { genre = x.Name, hours = (long)(g.Playtime / 3600) }))
+                    .GroupBy(x => x.genre).Select(grp => new { genre = grp.Key, count = grp.Count(), hours = grp.Sum(x => x.hours) })
+                    .OrderByDescending(x => x.hours).Take(15).ToList(),
+                topDevelopers = played.Where(g => g.Developers != null).SelectMany(g => g.Developers.Select(x => new { dev = x.Name, hours = (long)(g.Playtime / 3600) }))
+                    .GroupBy(x => x.dev).Select(grp => new { developer = grp.Key, count = grp.Count(), hours = grp.Sum(x => x.hours) })
+                    .OrderByDescending(x => x.hours).Take(15).ToList(),
+                topGames = played.OrderByDescending(g => g.Playtime).Take(20)
+                    .Select(g => new { name = g.Name, source = g.Source != null ? g.Source.Name : "?", hours = g.Playtime / 3600 }).ToList(),
+                byYear = games.Where(g => g.ReleaseDate != null && g.ReleaseDate.Value.Year < 9000)
+                    .GroupBy(g => g.ReleaseDate.Value.Year)
+                    .Select(grp => new { year = grp.Key, count = grp.Count() })
+                    .OrderByDescending(x => x.year).Take(15).ToList(),
+                duplicates = games.GroupBy(g => g.Name).Where(grp => grp.Count() > 1).Count()
+            };
         }
 
         #endregion

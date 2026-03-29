@@ -109,6 +109,56 @@ Send a JSON body with any combination of fields to update:
 | GET | `/api/stats` | Library statistics (counts, playtime, top genres, recent) |
 | POST | `/api/notifications` | Show notification `{text, type: "info"|"error"}` |
 
+### Advanced Query — POST /api/games/query
+
+Powerful game search with filters, sorting, and grouping. Send a JSON body:
+
+```json
+{
+  "q": "search text",
+  "genres": ["RPG", "Strategy"],
+  "developers": ["CD Projekt RED"],
+  "source": "Steam",
+  "playtimeMin": 3600,
+  "playtimeMax": 360000,
+  "releaseYearMin": 2020,
+  "installed": true,
+  "uncategorized": true,
+  "sort": "playtime",
+  "descending": true,
+  "groupBy": "developer",
+  "limit": 100
+}
+```
+
+**Filters:** `q`, `installed`, `favorite`, `hidden`, `playtimeMin/Max` (seconds), `releaseYearMin/Max`, `genres`, `categories`, `tags`, `features`, `developers`, `publishers`, `platforms` (arrays, AND logic), `source`, `completionStatus`, `uncategorized`, `untagged`
+
+**Sort:** `name` (default), `playtime`, `added`, `release`, `lastplayed` + `descending: true`
+
+**GroupBy:** `genre`, `developer`, `publisher`, `source`, `platform`, `year`, `completionStatus` — returns `[{group, count, totalHours}]` instead of game list
+
+### Duplicates — GET /api/games/duplicates
+
+Games owned on multiple platforms. Returns: `[{name, copies, sources, totalPlaytimeHours, games: [{id, source, installed, playtimeHours}]}]`
+
+### Batch — POST /api/batch
+
+Execute multiple API calls in one request (max 50):
+
+```json
+{"requests": [
+  {"method": "GET", "path": "/api/stats"},
+  {"method": "GET", "path": "/api/games?q=Witcher&limit=3"},
+  {"method": "POST", "path": "/api/games/query", "body": {"genres": ["RPG"], "groupBy": "developer"}}
+]}
+```
+
+Response: `{results: [{status, data}, ...]}`
+
+### Analytics — GET /api/analytics
+
+Full library analytics in one call: library stats, by source, top genres, top developers, top games by playtime, by release year, duplicate count.
+
 ### Plugin Integration
 
 | Method | Path | Description |
