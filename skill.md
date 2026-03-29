@@ -1,33 +1,15 @@
 # Playnite Bridge — AI Skill
 
-You have access to a Playnite game library manager through an HTTP API running on the user's local machine.
+You have access to a Playnite game library manager running on the user's local machine.
+Use HTTP requests (curl, fetch, etc.) to interact with it.
 
-> **Before using this skill**, ask the user for their API token. They can find it in Playnite: **Main Menu > Playnite Bridge > Show API Token**.
+> **This file contains a personal API token. Do not share publicly.**
 
 ## Connection
 
-- **Base URL:** `http://localhost:19821`
-- **Auth header:** `Authorization: Bearer <TOKEN>`
+- **Base URL:** `http://%%HOST%%:%%PORT%%`
+- **Auth header:** `Authorization: Bearer %%TOKEN%%`
 - **Format:** JSON (UTF-8)
-
-## Making Requests
-
-Use Python `urllib.request` for all API calls (curl on Windows may break non-ASCII encoding):
-
-```python
-import json, urllib.request
-
-TOKEN = '<ask user for token>'
-
-def api(method, path, body=None):
-    url = f'http://localhost:19821{path}'
-    data = json.dumps(body, ensure_ascii=False).encode('utf-8') if body else None
-    req = urllib.request.Request(url, data=data, method=method)
-    req.add_header('Authorization', f'Bearer {TOKEN}')
-    req.add_header('Content-Type', 'application/json; charset=utf-8')
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
-```
 
 ## Endpoints
 
@@ -37,13 +19,22 @@ def api(method, path, body=None):
 |--------|------|-------------|
 | GET | `/api/games` | List/search games (paginated) |
 | GET | `/api/games/{id}` | Full game details |
-| POST | `/api/games` | Create new game |
 | PUT | `/api/games/{id}` | Update game fields |
-| DELETE | `/api/games/{id}` | Delete game |
+| DELETE | `/api/games/{id}` | Delete game from library |
 | POST | `/api/games/{id}/launch` | Launch game |
-| POST | `/api/games/{id}/install` | Start installation |
+| POST | `/api/games/{id}/install` | Start game installation |
 | POST | `/api/games/{id}/uninstall` | Uninstall game |
 | POST | `/api/games/{id}/fetch-art` | Fetch missing artwork |
+| PUT | `/api/games/{id}/categories` | Set categories (replace) |
+| POST | `/api/games/{id}/categories` | Add categories (append) |
+| PUT | `/api/games/{id}/tags` | Set tags (replace) |
+| POST | `/api/games/{id}/tags` | Add tags (append) |
+| PUT | `/api/games/{id}/features` | Set features (replace) |
+| POST | `/api/games/{id}/features` | Add features (append) |
+| PUT | `/api/games/{id}/genres` | Set genres (replace) |
+| POST | `/api/games/{id}/genres` | Add genres (append) |
+| PUT | `/api/games/{id}/status` | Set completion status |
+| GET | `/api/games/missing-art` | Games missing artwork |
 
 ### Game Search — GET /api/games
 
@@ -53,7 +44,7 @@ Query parameters (all optional):
 - `favorite=true` — favorites only
 - `hidden=true` — include hidden games (excluded by default)
 - `uncategorized=true` — games without categories
-- `source` — filter by source name (e.g. "Steam")
+- `source` — filter by source name (e.g. Steam)
 - `genre`, `category`, `tag`, `feature`, `platform` — filter by name
 - `completionStatus` — filter by status name
 - `limit` — max results (default 500, max 5000)
@@ -61,51 +52,49 @@ Query parameters (all optional):
 
 Response: `{total, offset, limit, games: [...]}`
 
-### Game Create — POST /api/games
-
-```json
-{"name": "Game Name", "source": "PlayStation", "platforms": ["Sony PlayStation 4"], "categories": ["RPG"]}
-```
-
 ### Game Update — PUT /api/games/{id}
 
-Send any combination of fields to update:
+Send a JSON body with any combination of fields to update:
 
-**Text:** `name`, `sortingName`, `description`, `notes`, `version`
+**Text fields:** `name`, `sortingName`, `description`, `notes`, `version`
 **Booleans:** `hidden`, `favorite`
-**Numbers:** `userScore`, `communityScore`, `criticScore` (0-100 or null), `playtime` (seconds), `playCount`
-**Date:** `releaseDate` (YYYY-MM-DD)
+**Scores:** `userScore`, `communityScore`, `criticScore` (0-100 or null)
+**Date:** `releaseDate` (YYYY-MM-DD or YYYY-MM or YYYY)
 **Status:** `completionStatus` (name string)
-**Collections** (string arrays, auto-created if missing): `categories`, `tags`, `features`, `genres`, `developers`, `publishers`, `series`
-**Collections** (must exist): `platforms`, `ageRatings`, `regions`
-**Links:** `links` ([{name, url}])
+**Collections** (arrays of name strings — auto-created if missing):
+  `categories`, `tags`, `features`, `genres`, `developers`, `publishers`, `series`
+**Collections** (lookup only, must exist):
+  `platforms`, `ageRatings`, `regions`
+**Links:** `links` (array of `{name, url}` objects)
 
-### Game Sub-resources
+### Database Collections
 
-| PUT | `/api/games/{id}/categories` | Set categories (replace) |
-| POST | `/api/games/{id}/categories` | Add categories (append) |
-| PUT | `/api/games/{id}/tags` | Set tags (replace) |
-| POST | `/api/games/{id}/tags` | Add tags (append) |
-| PUT | `/api/games/{id}/features` | Set features (replace) |
-| POST | `/api/games/{id}/features` | Add features (append) |
-| PUT | `/api/games/{id}/genres` | Set genres (replace) |
-| POST | `/api/games/{id}/genres` | Add genres (append) |
-| PUT | `/api/games/{id}/status` | Set completion status `{status: "name"}` |
-
-Body for set/add: `{"categories": ["Name1", "Name2"]}` (or `tags`, `features`, `genres`)
-
-### Collections
-
-GET (list all) + POST `{name}` (create) for: `/api/categories`, `/api/genres`, `/api/tags`, `/api/features`, `/api/series`, `/api/completion-statuses`
-
-GET only: `/api/platforms`, `/api/sources`, `/api/companies`, `/api/age-ratings`, `/api/regions`, `/api/filter-presets`, `/api/emulators`
-
-DELETE: `/api/categories/{id}`, `/api/tags/{id}`, `/api/genres/{id}`, `/api/features/{id}`, `/api/series/{id}`
-
-All return `[{id, name}, ...]`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/categories` | All categories |
+| POST | `/api/categories` | Create category `{name}` |
+| GET | `/api/genres` | All genres |
+| POST | `/api/genres` | Create genre `{name}` |
+| GET | `/api/tags` | All tags |
+| POST | `/api/tags` | Create tag `{name}` |
+| GET | `/api/features` | All features |
+| POST | `/api/features` | Create feature `{name}` |
+| GET | `/api/platforms` | All platforms |
+| GET | `/api/sources` | All library sources |
+| GET | `/api/companies` | All developers/publishers |
+| GET | `/api/series` | All game series |
+| POST | `/api/series` | Create series `{name}` |
+| GET | `/api/completion-statuses` | All completion statuses |
+| POST | `/api/completion-statuses` | Create status `{name}` |
+| GET | `/api/age-ratings` | All age ratings |
+| GET | `/api/regions` | All regions |
+| GET | `/api/filter-presets` | Saved filter presets |
+| GET | `/api/emulators` | All emulators |
 
 ### View Control
 
+| Method | Path | Description |
+|--------|------|-------------|
 | GET | `/api/view/state` | Current UI state (view mode, sort, selection count) |
 | GET | `/api/view/selected` | Currently selected games with details |
 | POST | `/api/view/select` | Select games in UI `{gameIds: [...]}` |
@@ -113,28 +102,33 @@ All return `[{id, name}, ...]`
 
 ### App & System
 
+| Method | Path | Description |
+|--------|------|-------------|
 | GET | `/api/app/info` | App version, mode, paths |
 | GET | `/api/app/addons` | Installed addons |
-| GET | `/api/stats` | Library statistics (counts, playtime, genres, recently played) |
-| POST | `/api/notifications` | Show notification `{text, type: "info"/"error"}` |
+| GET | `/api/stats` | Library statistics (counts, playtime, top genres, recent) |
+| POST | `/api/notifications` | Show notification `{text, type: "info"|"error"}` |
 
 ### Automation
 
-| POST | `/api/auto-categorize` | Auto-categorize uncategorized games by primary genre |
-| POST | `/api/fetch-all-art` | Fetch missing artwork for all games (uses Steam CDN + IGDB) |
-| GET | `/api/games/missing-art` | List games missing artwork |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/auto-categorize` | Auto-categorize all uncategorized games by primary genre |
+| POST | `/api/fetch-all-art` | Fetch missing artwork for all games |
 
 ### Auth
 
-| POST | `/api/auth/rotate` | Rotate API token (returns new token, old stops working) |
-| GET | `/api` | API index with all endpoints |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/auth/rotate` | Rotate API token (returns new token) |
+| GET | `/api/skill.md` | Get this skill file with current token |
 
 ## Important Notes
 
-- **Game IDs** are GUIDs. Get them from `GET /api/games` first.
+- **Game IDs** are GUIDs (e.g. `a1b2c3d4-e5f6-7890-abcd-ef1234567890`). Get them from `GET /api/games` first.
 - **Playtime** is in seconds. Divide by 3600 for hours.
-- **Collection names** (categories, tags, features, genres, series) are auto-created when you reference them by name in updates.
-- **Launch/install/uninstall** affect the actual computer. Always confirm with the user.
-- **Delete** permanently removes a game from the library. Always confirm with the user.
-- **`GET /api/stats`** is a great starting point to understand the library.
-- **Artwork fetching** requires IGDB setup (Twitch API credentials in `igdb.json`). Steam games use Steam CDN automatically.
+- **Collection names** (categories, tags, features, genres, series) are auto-created when referenced. No need to create them first.
+- **Launch/install/uninstall** affect the actual computer. Ask the user before launching games.
+- **Delete** permanently removes a game from the library. Always confirm with the user first.
+- **GET /api/stats** is a great starting point to understand the library before diving into details.
+- **Token rotation:** After `POST /api/auth/rotate`, the old token stops working immediately. The user will need to update this skill file.

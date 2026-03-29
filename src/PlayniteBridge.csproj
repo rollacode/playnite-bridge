@@ -22,4 +22,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\skill.md">
+      <LogicalName>skill.md</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>
