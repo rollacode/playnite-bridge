@@ -27,54 +27,21 @@ A [Playnite](https://playnite.link/) plugin that exposes your entire game librar
 
 ## AI Integration
 
-There are three ways to connect AI to your game library:
-
-### Option 1: AI Skill File (simplest)
-
-Paste a skill file directly into any AI chat — ChatGPT, Claude, Gemini, etc.
+### Quick Start
 
 1. In Playnite: **Main Menu > Playnite Bridge > Copy AI Skill to Clipboard**
-2. Paste into your AI chat
-3. Done — the AI can now manage your library
+2. Paste into any AI chat (ChatGPT, Claude, Gemini, etc.)
+3. Done — the AI can now manage your game library
 
-### Option 2: MCP Server (richest)
+### Settings
 
-MCP (Model Context Protocol) server with game card UI. Works with Claude Desktop, ChatGPT, and other MCP-compatible clients.
+**Settings → Plugins → Playnite Bridge** — view API status, token, and AI integration config:
+- Copy AI Skill with one click
+- Copy MCP config for Claude Desktop
+- Copy API URL for ChatGPT
+- Manage token and network access
 
-**Setup:**
-
-1. Get your token: Playnite → **Main Menu > Playnite Bridge > Show API Token**
-2. Build the MCP server:
-   ```bash
-   cd mcp && npm install && npm run build
-   ```
-
-**Claude Desktop** — add to `claude_desktop_config.json` (Settings → Developer → Edit Config):
-```json
-{
-  "mcpServers": {
-    "playnite": {
-      "command": "node",
-      "args": ["C:/path/to/playnite-bridge/mcp/dist/server/stdio-bridge.js"],
-      "env": {
-        "PLAYNITE_URL": "http://<playnite-pc-ip>:19821",
-        "PLAYNITE_TOKEN": "<your-token>"
-      }
-    }
-  }
-}
-```
-
-**ChatGPT Desktop** — start the HTTP server, then add via UI:
-```bash
-cd mcp
-PLAYNITE_TOKEN=<your-token> PLAYNITE_URL=http://<ip>:19821 npm start
-```
-In ChatGPT: Settings → Tools → Add MCP Server → `http://<ip>:3849/mcp`
-
-**Available tools:** `search_games`, `get_game`, `query_games`, `library_stats`, `get_achievements`, `get_activity`, `update_game`, `manage_categories`, `list_collections`
-
-### Option 3: Claude Code Skill
+### Claude Code Skill
 
 Copy `skill.md` to your Claude Code skills directory:
 
@@ -100,11 +67,13 @@ All endpoints require `Authorization: Bearer <token>` header. Full documentation
 
 | Category | Endpoints | Examples |
 |----------|-----------|---------|
-| Games | 18 | Search, CRUD, launch, install, categories, tags, artwork |
+| Games | 20 | Search, CRUD, launch, install, categories, tags, cover art |
+| Query | 1 | Advanced filters, sort, groupBy analytics |
 | Collections | 18 | Categories, genres, tags, features, platforms, sources |
+| Plugin Data | 3 | Achievements (SuccessStory), activity (GameActivity), plugins |
 | View | 4 | UI state, selection, filters |
 | App | 4 | Version, addons, stats, notifications |
-| Automation | 3 | Auto-categorize, batch artwork fetch |
+| Automation | 2 | Auto-categorize, batch artwork fetch |
 | Auth | 2 | Token rotation, API index |
 
 ## IGDB Setup (optional)

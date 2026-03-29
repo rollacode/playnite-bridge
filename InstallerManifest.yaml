@@ -1,5 +1,15 @@
 AddonId: PlayniteBridge_f47ac10b
 Packages:
+  - Version: 1.2.0
+    RequiredApiVersion: 6.15.0
+    ReleaseDate: 2026-03-29
+    PackageUrl: https://github.com/rollacode/playnite-bridge/releases/download/v1.2.0/PlayniteBridge_v1.2.0.pext
+    Changelog:
+      - Settings panel in Playnite (Settings > Plugins > Playnite Bridge)
+      - Cover art endpoint (GET /api/games/{id}/cover)
+      - Theme-aware UI that adapts to any Playnite theme
+      - Slimmed plugin menu to single "Copy AI Skill" item
+      - SOLID architecture with 149 unit tests
   - Version: 1.1.0
     RequiredApiVersion: 6.15.0
     ReleaseDate: 2026-03-29

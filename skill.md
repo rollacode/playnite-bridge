@@ -158,6 +158,7 @@ When set, returns `[{group, count, totalHours}]` instead of game list. Great for
 |--------|------|-------------|
 | GET | `/api/games/{id}/achievements` | Achievements from SuccessStory plugin |
 | GET | `/api/games/{id}/activity` | Play sessions from GameActivity plugin |
+| GET | `/api/games/{id}/cover` | Cover image (binary). `?type=icon` or `?type=background` |
 | GET | `/api/plugins` | List loaded/installed/disabled plugins |
 
 ### Automation
