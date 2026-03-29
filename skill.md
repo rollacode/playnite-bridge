@@ -109,12 +109,37 @@ Send a JSON body with any combination of fields to update:
 | GET | `/api/stats` | Library statistics (counts, playtime, top genres, recent) |
 | POST | `/api/notifications` | Show notification `{text, type: "info"|"error"}` |
 
+### Plugin Integration
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/games/{id}/achievements` | Achievements from SuccessStory plugin |
+| GET | `/api/games/{id}/activity` | Play sessions from GameActivity plugin |
+| GET | `/api/plugins` | List loaded/installed/disabled plugins |
+
 ### Automation
 
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/auto-categorize` | Auto-categorize all uncategorized games by primary genre |
 | POST | `/api/fetch-all-art` | Fetch missing artwork for all games |
+
+### Eval — Execute C# Code
+
+`POST /api/eval` — compile and run arbitrary C# inside Playnite. The code has access to `PlayniteApi` (IPlayniteAPI) and `Plugin` (GenericPlugin).
+
+```json
+{"code": "PlayniteApi.Database.Games.Count", "timeoutMs": 10000, "onUiThread": false}
+```
+
+- If code has no `;` it is treated as an expression (auto-wrapped in `return (...)`)
+- Otherwise treated as statements — use `return` explicitly to return a value
+- `onUiThread: true` dispatches to WPF UI thread (needed for UI operations)
+- Timeout: 1-30 seconds, default 10s
+- All loaded assemblies (SDK, plugins, System.*) are available
+- Access other plugins: `PlayniteApi.Addons.Plugins.FirstOrDefault(p => p.Id == someGuid)`
+
+Response: `{success, result, resultType, durationMs}` or `{success: false, error, errors}`
 
 ### Auth
 
@@ -132,3 +157,4 @@ Send a JSON body with any combination of fields to update:
 - **Delete** permanently removes a game from the library. Always confirm with the user first.
 - **GET /api/stats** is a great starting point to understand the library before diving into details.
 - **Token rotation:** After `POST /api/auth/rotate`, the old token stops working immediately. The user will need to update this skill file.
+- **Eval** executes real C# in the Playnite process. Use for complex queries, batch ops, cross-plugin data access via reflection.

@@ -13,7 +13,11 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.CodeDom.Compiler;
+using System.Reflection;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using Microsoft.CSharp;
 
 namespace PlayniteBridge
 {
@@ -428,6 +432,8 @@ namespace PlayniteBridge
                         if (action == "genres" && method == "POST") return HandleAddGameList(gameId, req, "genres");
                         if (action == "status" && method == "PUT") return HandleSetCompletionStatus(gameId, req);
                         if (action == "fetch-art" && method == "POST") return HandleFetchArt(gameId);
+                        if (action == "achievements" && method == "GET") return HandleGetAchievements(gameId);
+                        if (action == "activity" && method == "GET") return HandleGetActivity(gameId);
                         if (action == "delete" && method == "POST") return HandleDeleteGame(gameId); // compat
                     }
                 }
@@ -481,6 +487,12 @@ namespace PlayniteBridge
             if (path == "/api/app/addons" && method == "GET") return HandleGetAddons();
             if (path == "/api/stats" && method == "GET") return HandleGetStats();
             if (path == "/api/notifications" && method == "POST") return HandleSendNotification(req);
+
+            // Plugins
+            if (path == "/api/plugins" && method == "GET") return HandleGetPlugins();
+
+            // Eval
+            if (path == "/api/eval" && method == "POST") return HandleEval(req);
 
             return null;
         }
@@ -1425,6 +1437,304 @@ namespace PlayniteBridge
             if (list == null || list.Count == 0) return null;
             var first = list[0] as Dictionary<string, object>;
             return first?.GetValueOrNull("image_id")?.ToString();
+        }
+
+        #endregion
+
+        #region Plugin Integration (SuccessStory, GameActivity)
+
+        private static readonly string SuccessStoryGuid = "cebe6d32-8c46-4459-b993-5a5189d60788";
+        private static readonly string GameActivityGuid = "afbb1a0d-04a1-4d0c-9afa-c6e42ca855b4";
+
+        private string GetExtensionDataPath(string pluginGuid)
+        {
+            return Path.Combine(PlayniteApi.Paths.ExtensionsDataPath, pluginGuid);
+        }
+
+        private object HandleGetAchievements(Guid gameId)
+        {
+            var game = PlayniteApi.Database.Games.Get(gameId);
+            if (game == null) return Error(404, "Game not found");
+
+            var filePath = Path.Combine(GetExtensionDataPath(SuccessStoryGuid), "SuccessStory", gameId.ToString() + ".json");
+            if (!File.Exists(filePath))
+                return new { gameId = gameId.ToString(), gameName = game.Name, installed = false, message = "SuccessStory plugin data not found for this game" };
+
+            try
+            {
+                var json = File.ReadAllText(filePath, Encoding.UTF8);
+                var data = _json.Deserialize<Dictionary<string, object>>(json);
+
+                var items = data.GetValueOrNull("Items") as ArrayList;
+                var achievements = new List<object>();
+                var unlockedCount = 0;
+                if (items != null)
+                {
+                    foreach (Dictionary<string, object> a in items)
+                    {
+                        var dateUnlocked = a.GetValueOrNull("DateUnlocked")?.ToString();
+                        var isUnlocked = dateUnlocked != null && !dateUnlocked.StartsWith("0001");
+                        if (isUnlocked) unlockedCount++;
+                        achievements.Add(new
+                        {
+                            name = a.GetValueOrNull("Name"),
+                            description = a.GetValueOrNull("Description"),
+                            unlocked = isUnlocked,
+                            dateUnlocked = isUnlocked ? dateUnlocked : null,
+                            percent = a.ContainsKey("Percent") ? a["Percent"] : null,
+                            gamerScore = a.ContainsKey("GamerScore") ? a["GamerScore"] : null,
+                            isHidden = a.ContainsKey("IsHidden") && (bool)a["IsHidden"]
+                        });
+                    }
+                }
+
+                var source = data.GetValueOrNull("SourcesLink") as Dictionary<string, object>;
+
+                return new
+                {
+                    gameId = gameId.ToString(),
+                    gameName = game.Name,
+                    installed = true,
+                    source = source?.GetValueOrNull("Name"),
+                    total = achievements.Count,
+                    unlocked = unlockedCount,
+                    locked = achievements.Count - unlockedCount,
+                    achievements
+                };
+            }
+            catch (Exception ex)
+            {
+                return Error(500, "Failed to read SuccessStory data: " + ex.Message);
+            }
+        }
+
+        private object HandleGetActivity(Guid gameId)
+        {
+            var game = PlayniteApi.Database.Games.Get(gameId);
+            if (game == null) return Error(404, "Game not found");
+
+            var filePath = Path.Combine(GetExtensionDataPath(GameActivityGuid), "GameActivity", gameId.ToString() + ".json");
+            if (!File.Exists(filePath))
+                return new { gameId = gameId.ToString(), gameName = game.Name, installed = false, message = "GameActivity plugin data not found for this game" };
+
+            try
+            {
+                var json = File.ReadAllText(filePath, Encoding.UTF8);
+                var data = _json.Deserialize<Dictionary<string, object>>(json);
+
+                var items = data.GetValueOrNull("Items") as ArrayList;
+                var sessions = new List<object>();
+                if (items != null)
+                {
+                    foreach (Dictionary<string, object> s in items)
+                    {
+                        sessions.Add(new
+                        {
+                            date = s.GetValueOrNull("DateSession"),
+                            elapsedSeconds = s.ContainsKey("ElapsedSeconds") ? s["ElapsedSeconds"] : 0,
+                            action = s.GetValueOrNull("GameActionName")
+                        });
+                    }
+                }
+
+                var totalSeconds = data.ContainsKey("SessionPlaytime") ? data["SessionPlaytime"] : 0;
+
+                return new
+                {
+                    gameId = gameId.ToString(),
+                    gameName = game.Name,
+                    installed = true,
+                    totalSeconds,
+                    totalHours = Math.Round(Convert.ToDouble(totalSeconds) / 3600.0, 1),
+                    sessionCount = sessions.Count,
+                    sessions
+                };
+            }
+            catch (Exception ex)
+            {
+                return Error(500, "Failed to read GameActivity data: " + ex.Message);
+            }
+        }
+
+        private object HandleGetPlugins()
+        {
+            var plugins = PlayniteApi.Addons.Plugins.Select(p => new
+            {
+                id = p.Id.ToString(),
+                type = p.GetType().Name,
+                assembly = p.GetType().Assembly.GetName().Name
+            }).ToList();
+
+            var addons = PlayniteApi.Addons.Addons ?? new List<string>();
+            var disabled = PlayniteApi.Addons.DisabledAddons ?? new List<string>();
+
+            return new
+            {
+                loaded = plugins,
+                installed = addons,
+                disabled
+            };
+        }
+
+        #endregion
+
+        #region Eval
+
+        private object HandleEval(HttpListenerRequest req)
+        {
+            var body = ParseBody(req);
+            var code = body.GetValueOrNull("code") as string;
+            if (string.IsNullOrWhiteSpace(code))
+                return Error(400, "Missing 'code' field");
+
+            var timeoutMs = 10000;
+            if (body.ContainsKey("timeoutMs"))
+            {
+                var t = Convert.ToInt32(body["timeoutMs"]);
+                timeoutMs = Math.Max(1000, Math.Min(t, 30000));
+            }
+
+            var onUiThread = body.ContainsKey("onUiThread") && body["onUiThread"] is bool ui && ui;
+
+            // Detect expression vs statements
+            var isExpression = !code.Contains(";");
+            var wrappedCode = GenerateEvalSource(code, isExpression);
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            using (var provider = new CSharpCodeProvider())
+            {
+                var parms = new CompilerParameters
+                {
+                    GenerateInMemory = true,
+                    GenerateExecutable = false,
+                    TreatWarningsAsErrors = false,
+                };
+
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    try
+                    {
+                        if (!asm.IsDynamic && !string.IsNullOrEmpty(asm.Location))
+                            parms.ReferencedAssemblies.Add(asm.Location);
+                    }
+                    catch { }
+                }
+
+                var compiled = provider.CompileAssemblyFromSource(parms, wrappedCode);
+
+                if (compiled.Errors.HasErrors)
+                {
+                    var errors = new List<string>();
+                    foreach (CompilerError err in compiled.Errors)
+                        if (!err.IsWarning)
+                            errors.Add($"({err.Line},{err.Column}): {err.ErrorNumber} {err.ErrorText}");
+
+                    return new { success = false, error = "Compilation failed", errors };
+                }
+
+                var method = compiled.CompiledAssembly.GetType("ScriptHost")
+                    .GetMethod("Execute", BindingFlags.Public | BindingFlags.Static);
+
+                try
+                {
+                    object execResult = null;
+                    Exception execError = null;
+
+                    Action invoke = () =>
+                    {
+                        try { execResult = method.Invoke(null, new object[] { PlayniteApi, this }); }
+                        catch (TargetInvocationException tie) { execError = tie.InnerException ?? tie; }
+                        catch (Exception ex) { execError = ex; }
+                    };
+
+                    if (onUiThread)
+                    {
+                        PlayniteApi.MainView.UIDispatcher.Invoke(invoke,
+                            TimeSpan.FromMilliseconds(timeoutMs),
+                            System.Windows.Threading.DispatcherPriority.Normal);
+                    }
+                    else
+                    {
+                        var task = Task.Run(() => invoke());
+                        if (!task.Wait(timeoutMs))
+                            return new { success = false, error = $"Script timed out after {timeoutMs}ms" };
+                    }
+
+                    sw.Stop();
+
+                    if (execError != null)
+                        return new { success = false, error = execError.Message, exceptionType = execError.GetType().Name, durationMs = sw.ElapsedMilliseconds };
+
+                    return new
+                    {
+                        success = true,
+                        result = SafeSerializeResult(execResult),
+                        resultType = execResult?.GetType()?.Name,
+                        durationMs = sw.ElapsedMilliseconds
+                    };
+                }
+                catch (Exception ex)
+                {
+                    sw.Stop();
+                    var inner = ex.InnerException ?? ex;
+                    return new { success = false, error = inner.Message, exceptionType = inner.GetType().Name, durationMs = sw.ElapsedMilliseconds };
+                }
+            }
+        }
+
+        private string GenerateEvalSource(string userCode, bool isExpression)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("using System;");
+            sb.AppendLine("using System.Collections;");
+            sb.AppendLine("using System.Collections.Generic;");
+            sb.AppendLine("using System.IO;");
+            sb.AppendLine("using System.Linq;");
+            sb.AppendLine("using System.Text;");
+            sb.AppendLine("using System.Reflection;");
+            sb.AppendLine("using Playnite.SDK;");
+            sb.AppendLine("using Playnite.SDK.Models;");
+            sb.AppendLine("using Playnite.SDK.Plugins;");
+            sb.AppendLine("public class ScriptHost {");
+            sb.AppendLine("  public static object Execute(IPlayniteAPI PlayniteApi, GenericPlugin Plugin) {");
+            if (isExpression)
+                sb.AppendLine("    return (" + userCode + ");");
+            else
+            {
+                sb.AppendLine("    " + userCode);
+                sb.AppendLine("    return null;");
+            }
+            sb.AppendLine("  }");
+            sb.AppendLine("}");
+            return sb.ToString();
+        }
+
+        private object SafeSerializeResult(object result)
+        {
+            if (result == null) return null;
+            if (result is string || result is bool || result is int || result is long
+                || result is double || result is float || result is decimal || result is Guid)
+                return result;
+
+            if (result is Game g) return SerializeGameFull(g);
+
+            if (result is IEnumerable<Game> games)
+                return games.Select(x => SerializeGameCompact(x)).ToList();
+
+            if (result is DatabaseObject dbo)
+                return new { id = dbo.Id.ToString(), name = dbo.Name };
+
+            if (result is IEnumerable enumerable && !(result is string))
+            {
+                var list = new List<object>();
+                foreach (var item in enumerable)
+                    list.Add(SafeSerializeResult(item));
+                return list;
+            }
+
+            try { _json.Serialize(result); return result; }
+            catch { return result.ToString(); }
         }
 
         #endregion
