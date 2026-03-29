@@ -30,6 +30,7 @@ namespace PlayniteBridge
         public PlayniteBridgePlugin(IPlayniteAPI api) : base(api)
         {
             _settingsViewModel = new PluginSettingsViewModel(this);
+            Properties = new GenericPluginProperties { HasSettings = true };
         }
 
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)

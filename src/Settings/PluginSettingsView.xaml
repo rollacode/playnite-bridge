@@ -4,148 +4,146 @@
              Margin="0">
 
     <UserControl.Resources>
-        <!-- Section header style -->
-        <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16"/>
+        <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}" />
+
+        <Style x:Key="SectionHeader" TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeLarger}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Foreground" Value="{DynamicResource GlyphBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
         </Style>
 
-        <!-- Accent border for sections -->
-        <Style x:Key="SectionBorder" TargetType="Border">
-            <Setter Property="BorderThickness" Value="3,0,0,0"/>
-            <Setter Property="BorderBrush" Value="#FF69B4"/>
-            <Setter Property="Padding" Value="12,8,0,8"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
+        <Style x:Key="SubHeader" TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeLarge}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Margin" Value="0,4,0,6"/>
         </Style>
 
-        <Style x:Key="CyanSectionBorder" TargetType="Border">
-            <Setter Property="BorderThickness" Value="3,0,0,0"/>
-            <Setter Property="BorderBrush" Value="#00BCD4"/>
-            <Setter Property="Padding" Value="12,8,0,8"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrushDarker}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="MinWidth" Value="90"/>
         </Style>
 
-        <!-- Copy button style -->
-        <Style x:Key="CopyButton" TargetType="Button">
-            <Setter Property="Padding" Value="12,4"/>
-            <Setter Property="MinWidth" Value="80"/>
-            <Setter Property="Cursor" Value="Hand"/>
+        <Style x:Key="StatusGreen" TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource PositiveRatingBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
-        <!-- Monospace text -->
         <Style x:Key="MonoText" TargetType="TextBox">
-            <Setter Property="FontFamily" Value="Consolas"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontFamily" Value="{DynamicResource MonospaceFontFamily}"/>
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
             <Setter Property="IsReadOnly" Value="True"/>
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Setter Property="Background" Value="{DynamicResource PopupBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#333"/>
             <Setter Property="Padding" Value="8,6"/>
         </Style>
 
-        <Style x:Key="MonoBlock" TargetType="TextBox">
-            <Setter Property="FontFamily" Value="Consolas"/>
+        <Style x:Key="MonoBlock" TargetType="TextBox" BasedOn="{StaticResource MonoText}">
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="IsReadOnly" Value="True"/>
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="Foreground" Value="#D4D4D4"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#333"/>
-            <Setter Property="Padding" Value="8,6"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="AcceptsReturn" Value="True"/>
             <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
-            <Setter Property="MaxHeight" Value="120"/>
+            <Setter Property="MaxHeight" Value="140"/>
         </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="4">
 
-            <!-- API Status Section -->
-            <Border Style="{StaticResource SectionBorder}">
+            <!-- API Status -->
+            <Border BorderThickness="3,0,0,0" BorderBrush="{DynamicResource GlyphBrush}"
+                    Padding="16,10,0,10" Margin="0,0,0,20">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="API Status"/>
 
-                    <Grid Margin="0,0,0,6">
+                    <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="90"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Status:" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" x:Name="StatusText" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Status:"/>
+                        <TextBlock Grid.Column="1" x:Name="StatusText" Style="{StaticResource StatusGreen}"/>
                     </Grid>
 
-                    <Grid Margin="0,0,0,6">
+                    <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="90"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Network:" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" x:Name="NetworkText" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Network:"/>
+                        <TextBlock Grid.Column="1" x:Name="NetworkText" Style="{StaticResource StatusGreen}"/>
                     </Grid>
 
                     <Button x:Name="BtnEnableNetwork" Content="Enable Network Access"
-                            Style="{StaticResource CopyButton}" HorizontalAlignment="Left"
-                            Margin="0,4,0,8" Click="BtnEnableNetwork_Click"/>
+                            HorizontalAlignment="Left" Margin="0,2,0,12"
+                            Padding="12,5" Click="BtnEnableNetwork_Click"/>
 
-                    <Grid Margin="0,4,0,0">
+                    <Grid Margin="0,0,0,4">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="90"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Token:" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Token:"/>
                         <TextBox Grid.Column="1" x:Name="TokenBox" Style="{StaticResource MonoText}" Margin="0,0,8,0"/>
                         <Button Grid.Column="2" x:Name="BtnCopyToken" Content="Copy"
-                                Style="{StaticResource CopyButton}" Click="BtnCopyToken_Click"/>
+                                Padding="12,5" Click="BtnCopyToken_Click"/>
                     </Grid>
 
                     <Button x:Name="BtnRegenerateToken" Content="Regenerate Token"
-                            Style="{StaticResource CopyButton}" HorizontalAlignment="Left"
-                            Margin="0,8,0,0" Click="BtnRegenerateToken_Click"/>
+                            HorizontalAlignment="Left" Margin="0,8,0,0"
+                            Padding="12,5" Click="BtnRegenerateToken_Click"/>
                 </StackPanel>
             </Border>
 
-            <!-- AI Integration Section -->
-            <Border Style="{StaticResource CyanSectionBorder}">
+            <!-- AI Integration -->
+            <Border BorderThickness="3,0,0,0" BorderBrush="{DynamicResource HighlightGlyphBrush}"
+                    Padding="16,10,0,10" Margin="0,0,0,20">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="AI Integration"/>
 
-                    <TextBlock Text="Copy the AI Skill to paste into any AI chat (Claude, ChatGPT, etc.):"
-                               TextWrapping="Wrap" Margin="0,0,0,8"/>
-                    <Button x:Name="BtnCopySkill" Content="Copy AI Skill to Clipboard"
-                            Style="{StaticResource CopyButton}" HorizontalAlignment="Left"
-                            Margin="0,0,0,12" Click="BtnCopySkill_Click"/>
+                    <TextBlock Text="Paste the AI Skill into any AI chat (Claude, ChatGPT, Gemini):"
+                               TextWrapping="Wrap" Margin="0,0,0,8"
+                               Foreground="{DynamicResource TextBrushDarker}"/>
 
-                    <TextBlock Text="Save AI Skill as file:" Margin="0,0,0,6"/>
-                    <Button x:Name="BtnOpenSkillFile" Content="Open AI Skill File"
-                            Style="{StaticResource CopyButton}" HorizontalAlignment="Left"
-                            Margin="0,0,0,16" Click="BtnOpenSkillFile_Click"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <Button x:Name="BtnCopySkill" Content="Copy AI Skill"
+                                Padding="14,6" Click="BtnCopySkill_Click"/>
+                        <Button x:Name="BtnOpenSkillFile" Content="Open as File"
+                                Padding="14,6" Margin="8,0,0,0" Click="BtnOpenSkillFile_Click"/>
+                    </StackPanel>
 
-                    <!-- Claude Desktop MCP config -->
-                    <TextBlock Text="Claude Desktop (MCP)" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                    <TextBlock Text="Add this to claude_desktop_config.json:" Margin="0,0,0,4"
-                               TextWrapping="Wrap"/>
+                    <Separator Background="{DynamicResource PanelSeparatorBrush}" Margin="0,0,0,16"/>
+
+                    <!-- Claude Desktop -->
+                    <TextBlock Style="{StaticResource SubHeader}" Text="Claude Desktop (MCP)"/>
+                    <TextBlock Text="Add to claude_desktop_config.json (Settings → Developer → Edit Config):"
+                               TextWrapping="Wrap" Margin="0,0,0,6"
+                               Foreground="{DynamicResource TextBrushDarker}"/>
                     <TextBox x:Name="ClaudeConfigBox" Style="{StaticResource MonoBlock}"/>
                     <Button x:Name="BtnCopyClaudeConfig" Content="Copy Config"
-                            Style="{StaticResource CopyButton}" HorizontalAlignment="Left"
-                            Margin="0,6,0,12" Click="BtnCopyClaudeConfig_Click"/>
+                            HorizontalAlignment="Left" Padding="12,5"
+                            Margin="0,6,0,16" Click="BtnCopyClaudeConfig_Click"/>
 
-                    <!-- ChatGPT / OpenAI -->
-                    <TextBlock Text="ChatGPT / OpenAI Actions" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                    <TextBlock Text="Use this URL as the API endpoint:" Margin="0,0,0,4"
-                               TextWrapping="Wrap"/>
-                    <Grid Margin="0,0,0,0">
+                    <Separator Background="{DynamicResource PanelSeparatorBrush}" Margin="0,0,0,16"/>
+
+                    <!-- ChatGPT -->
+                    <TextBlock Style="{StaticResource SubHeader}" Text="ChatGPT / OpenAI"/>
+                    <TextBlock Text="MCP server URL (start server first: cd mcp &amp;&amp; npm start):"
+                               TextWrapping="Wrap" Margin="0,0,0,6"
+                               Foreground="{DynamicResource TextBrushDarker}"/>
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox Grid.Column="0" x:Name="ChatGptUrlBox" Style="{StaticResource MonoText}" Margin="0,0,8,0"/>
                         <Button Grid.Column="1" x:Name="BtnCopyChatGptUrl" Content="Copy"
-                                Style="{StaticResource CopyButton}" Click="BtnCopyChatGptUrl_Click"/>
+                                Padding="12,5" Click="BtnCopyChatGptUrl_Click"/>
                     </Grid>
                 </StackPanel>
             </Border>
