@@ -75,9 +75,12 @@ namespace PlayniteBridge.Services
                 ["removals"] = removals ?? new List<object>()
             };
             var jsonBody = _json.Serialize(payload);
-            Logger.Info($"Push: {items.Count} items, {jsonBody.Length} bytes to {_baseUrl}");
+            Logger.Info($"Push: {items.Count} items, {jsonBody.Length} bytes to {_baseUrl} (key={_apiKey.Substring(0, Math.Min(12, _apiKey.Length))}...)");
             var result = Post("/api/sync/push", jsonBody);
-            if (result == null) Logger.Warn("Push returned null (failed)");
+            if (result == null)
+                Logger.Warn("Push returned null (failed)");
+            else
+                Logger.Info($"Push response: {result.Substring(0, Math.Min(100, result.Length))}");
             return result != null ? _json.Deserialize<SyncPushResponse>(result) : null;
         }
 

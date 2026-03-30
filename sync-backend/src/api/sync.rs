@@ -66,7 +66,13 @@ fn push_games(db: &db::Db, client_id: &str, req: &SyncPushRequest) -> AppResult<
                         upsert_client_game(db, client_id, &canonical_id, &game)?;
                         accepted += 1;
                     }
-                    None => skipped += 1, // no canonical key
+                    None => {
+                        if skipped < 3 {
+                            tracing::warn!("Skipped game '{}': source={:?} game_id={:?}",
+                                game.name, game.source, game.game_id);
+                        }
+                        skipped += 1;
+                    }
                 }
             }
             Err(e) => {
