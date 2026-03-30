@@ -76,7 +76,11 @@ fn push_games(db: &db::Db, client_id: &str, req: &SyncPushRequest) -> AppResult<
                 }
             }
             Err(e) => {
-                tracing::warn!("Failed to parse game in sync push: {e}");
+                if conflicts < 3 {
+                    let preview = item.to_string();
+                    let preview = if preview.len() > 200 { &preview[..200] } else { &preview };
+                    tracing::warn!("Failed to parse game: {e} | JSON: {preview}");
+                }
                 conflicts += 1;
             }
         }

@@ -29,7 +29,13 @@ namespace PlayniteBridge.Helpers
 
         public List<Guid> ResolveIds<T>(IItemCollection<T> collection, object names, bool create = true) where T : DatabaseObject
         {
-            var nameList = (names as ArrayList)?.Cast<string>().ToList();
+            List<string> nameList = null;
+            if (names is ArrayList arrayList)
+                nameList = arrayList.Cast<string>().ToList();
+            else if (names is List<string> stringList)
+                nameList = stringList;
+            else if (names is IEnumerable<string> enumerable)
+                nameList = enumerable.ToList();
             if (nameList == null || nameList.Count == 0) return new List<Guid>();
 
             var ids = new List<Guid>();
