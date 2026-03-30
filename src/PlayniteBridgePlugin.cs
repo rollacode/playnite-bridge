@@ -163,6 +163,7 @@ namespace PlayniteBridge
                 PollApproval = () => PollAndStart(),
                 TriggerSync = () => TriggerSyncNow(),
                 TriggerFullResync = () => TriggerFullResync(),
+                Disconnect = () => DisconnectSync(),
             });
         }
 
@@ -258,6 +259,15 @@ namespace PlayniteBridge
                 StartSyncTimer();
             }
             return success;
+        }
+
+        private void DisconnectSync()
+        {
+            _syncTimer?.Dispose();
+            _syncTimer = null;
+            _syncState?.Clear();
+            _settingsViewModel.Settings.SyncEnabled = false;
+            Logger.Info("Disconnected from sync backend");
         }
 
         private bool PollAndStart()

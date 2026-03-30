@@ -138,9 +138,9 @@ async function loadOverview() {
                 <tr>
                     <td>${esc(c.name)}</td>
                     <td style="font-family:var(--font-mono);font-size:11px">${c.gameCount}</td>
-                    <td>${timeAgo(c.lastSeen)}</td>
                     <td>${timeAgo(c.lastSync)}</td>
-                    <td>${clientStatusDot(c.lastSeen)}</td>
+                    <td>${clientStatusDot(c.lastSync)}</td>
+                    <td><button class="btn-pag" style="color:var(--red);border-color:var(--red);font-size:10px" onclick="removeClient('${c.id}')">Remove</button></td>
                 </tr>
             `).join('');
         }
@@ -257,6 +257,17 @@ async function approveClient(id) {
     } catch (e) {
         toast('Approve failed: ' + e.message);
     }
+}
+
+async function removeClient(id) {
+    if (!confirm('Remove this client?')) return;
+    try {
+        let adminKey = localStorage.getItem('pbs_admin_key');
+        if (!adminKey) { adminKey = prompt('Admin key:'); if (adminKey) localStorage.setItem('pbs_admin_key', adminKey); }
+        await fetch(`${BASE}/clients/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${adminKey}` } });
+        toast('Client removed');
+        loadOverview();
+    } catch (e) { toast('Failed: ' + e.message); }
 }
 
 async function rejectClient(id) {

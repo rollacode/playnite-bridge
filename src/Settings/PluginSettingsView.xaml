@@ -213,6 +213,9 @@
                                     Padding="12,5" Click="BtnSyncNow_Click"/>
                             <Button x:Name="BtnFullResync" Content="Full Resync"
                                     Padding="12,5" Margin="8,0,0,0" Click="BtnFullResync_Click"/>
+                            <Button x:Name="BtnDisconnect" Content="Disconnect"
+                                    Padding="12,5" Margin="8,0,0,0" Click="BtnDisconnect_Click"
+                                    Foreground="{DynamicResource WarningBrush}"/>
                         </StackPanel>
 
                         <CheckBox Content="Enable automatic sync"

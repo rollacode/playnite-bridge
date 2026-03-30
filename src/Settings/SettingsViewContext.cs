@@ -31,5 +31,6 @@ namespace PlayniteBridge.Settings
         public Func<bool> PollApproval { get; set; }
         public Action TriggerSync { get; set; }
         public Action TriggerFullResync { get; set; }
+        public Action Disconnect { get; set; }
     }
 }

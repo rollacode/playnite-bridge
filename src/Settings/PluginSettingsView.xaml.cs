@@ -33,6 +33,7 @@ namespace PlayniteBridge.Settings
         private readonly Func<bool> _pollApproval;
         private readonly Action _triggerSync;
         private readonly Action _triggerFullResync;
+        private readonly Action _disconnect;
         private DispatcherTimer _pollTimer;
 
         public PluginSettingsView(SettingsViewContext ctx)
@@ -58,6 +59,7 @@ namespace PlayniteBridge.Settings
             _pollApproval = ctx.PollApproval;
             _triggerSync = ctx.TriggerSync;
             _triggerFullResync = ctx.TriggerFullResync;
+            _disconnect = ctx.Disconnect;
 
             Loaded += OnLoaded;
         }
@@ -392,6 +394,19 @@ namespace PlayniteBridge.Settings
                 timer.Stop();
             };
             timer.Start();
+        }
+
+        private void BtnDisconnect_Click(object sender, RoutedEventArgs e)
+        {
+            var result = _playniteApi.Dialogs.ShowMessage(
+                "Disconnect from sync backend?\n\nYour local library won't be affected.",
+                "Playnite Bridge", MessageBoxButton.YesNo);
+            if (result == MessageBoxResult.Yes)
+            {
+                _disconnect?.Invoke();
+                _pollTimer?.Stop();
+                RefreshSyncStatus();
+            }
         }
 
         private void BtnFullResync_Click(object sender, RoutedEventArgs e)
