@@ -1,0 +1,15 @@
+[server]
+port = 19822
+host = "0.0.0.0"
+
+[database]
+path = "./playnite-sync.db"
+
+[discovery]
+enabled = true
+service_name = "Playnite Sync"
+
+[sync]
+max_push_batch = 500
+log_retention_days = 30
+# Clients connect via Settings UI → request → approve (dashboard or PSR code)

@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using PlayniteBridge.Handlers;
 using PlayniteBridge.Helpers;
 using PlayniteBridge.Server;
@@ -25,6 +26,14 @@ namespace PlayniteBridge
         private AutomationHandler _automation;
         private PluginSettingsViewModel _settingsViewModel;
 
+        // Sync
+        private SyncEngine _syncEngine;
+        private SyncClient _syncClient;
+        private SyncState _syncState;
+        private GameSerializationService _serializer;
+        private CollectionResolver _resolver;
+        private Timer _syncTimer;
+
         public override Guid Id => Guid.Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479");
 
         public PlayniteBridgePlugin(IPlayniteAPI api) : base(api)
@@ -36,8 +45,8 @@ namespace PlayniteBridge
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             // Services
-            var resolver = new CollectionResolver();
-            var serializer = new GameSerializationService();
+            _resolver = new CollectionResolver();
+            _serializer = new GameSerializationService();
             var queryService = new GameQueryService();
             var evalService = new EvalService();
             var jsonHelper = new JsonHelper();
@@ -51,14 +60,14 @@ namespace PlayniteBridge
             _auth.LoadOrCreateToken();
 
             // Handlers
-            var gamesHandler = new GamesHandler(PlayniteApi, resolver, serializer);
-            var queryHandler = new QueryHandler(PlayniteApi, queryService, serializer);
-            var collectionHandler = new CollectionHandler(PlayniteApi, resolver);
-            var viewHandler = new ViewHandler(PlayniteApi, serializer);
+            var gamesHandler = new GamesHandler(PlayniteApi, _resolver, _serializer);
+            var queryHandler = new QueryHandler(PlayniteApi, queryService, _serializer);
+            var collectionHandler = new CollectionHandler(PlayniteApi, _resolver);
+            var viewHandler = new ViewHandler(PlayniteApi, _serializer);
             var appHandler = new AppHandler(PlayniteApi, HttpPort);
-            _automation = new AutomationHandler(PlayniteApi, resolver, () => GetPluginUserDataPath());
+            _automation = new AutomationHandler(PlayniteApi, _resolver, () => GetPluginUserDataPath());
             var pluginDataHandler = new PluginDataHandler(PlayniteApi, pluginService);
-            var evalHandler = new EvalHandler(PlayniteApi, this, evalService, jsonHelper, serializer);
+            var evalHandler = new EvalHandler(PlayniteApi, this, evalService, jsonHelper, _serializer);
 
             // Router + Server
             var router = new Router(PlayniteApi, gamesHandler, queryHandler, collectionHandler,
@@ -81,10 +90,45 @@ namespace PlayniteBridge
                 if (result == System.Windows.MessageBoxResult.Yes)
                     EnableNetworkAccess();
             }
+
+            // Initialize sync
+            InitSync();
+        }
+
+        public override void OnGameStopped(OnGameStoppedEventArgs args)
+        {
+            if (!_settingsViewModel.Settings.SyncEnabled || _syncEngine == null) return;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    var result = _syncEngine.PushSingleGame(args.Game);
+                    if (result.Success && result.GamesPushed > 0)
+                        Logger.Info($"Synced game after stop: {args.Game.Name}");
+                }
+                catch (Exception ex) { Logger.Warn($"Post-game sync failed: {ex.Message}"); }
+            });
+        }
+
+        public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
+        {
+            if (!_settingsViewModel.Settings.SyncEnabled || _syncEngine == null) return;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                Thread.Sleep(5000); // let library update settle
+                try
+                {
+                    var result = _syncEngine.RunSync();
+                    if (result.Success)
+                        Logger.Info($"Library-update sync: pushed={result.GamesPushed}, pulled={result.GamesPulled}");
+                }
+                catch (Exception ex) { Logger.Warn($"Library-update sync failed: {ex.Message}"); }
+            });
         }
 
         public override void Dispose()
         {
+            _syncTimer?.Dispose();
             _server?.Stop();
             base.Dispose();
         }
@@ -104,7 +148,16 @@ namespace PlayniteBridge
                 EnableNetworkAccess = () => EnableNetworkAccess(),
                 RotateToken = () => _auth?.RotateToken(),
                 PlayniteApi = PlayniteApi,
-                Port = HttpPort
+                Port = HttpPort,
+                // Sync
+                GetSyncStatus = () => GetSyncStatusText(),
+                GetLastSyncTime = () => _syncState?.LastSyncTime,
+                DiscoverBackends = () => BackendDiscovery.DiscoverAll(),
+                RequestConnection = (url) => _syncEngine?.RequestConnection(url),
+                ApproveWithCode = (code) => ApproveAndStart(code),
+                PollApproval = () => PollAndStart(),
+                TriggerSync = () => TriggerSyncNow(),
+                TriggerFullResync = () => TriggerFullResync(),
             });
         }
 
@@ -122,7 +175,127 @@ namespace PlayniteBridge
                         "Playnite Bridge");
                 }
             };
+            yield return new MainMenuItem
+            {
+                Description = "Sync Now",
+                MenuSection = "@Playnite Bridge",
+                Action = _ => TriggerSyncNow()
+            };
         }
+
+        #region Sync
+
+        private void InitSync()
+        {
+            _syncState = SyncState.Load(GetPluginUserDataPath());
+            _syncClient = new SyncClient(
+                _settingsViewModel.Settings.SyncBackendUrl,
+                _syncState.ApiKey ?? "");
+            _syncEngine = new SyncEngine(PlayniteApi, _syncClient, _syncState,
+                _serializer, _resolver, () => GetPluginUserDataPath());
+
+            // If already registered and enabled, start sync timer
+            if (_settingsViewModel.Settings.SyncEnabled && _syncState.IsRegistered)
+            {
+                StartSyncTimer();
+            }
+        }
+
+        private void StartSyncTimer()
+        {
+            _syncTimer?.Dispose();
+            var interval = TimeSpan.FromMinutes(
+                Math.Max(1, _settingsViewModel.Settings.SyncIntervalMinutes));
+            _syncTimer = new Timer(SyncTimerCallback, null, TimeSpan.FromSeconds(10), interval);
+            Logger.Info($"Sync timer started (interval: {interval.TotalMinutes}m)");
+        }
+
+        private void SyncTimerCallback(object state)
+        {
+            if (_syncEngine == null || _syncEngine.IsSyncing) return;
+            if (_api_has_running_game()) return;
+
+            try
+            {
+                var result = _syncEngine.RunSync();
+                if (result.Success && (result.GamesPushed > 0 || result.GamesPulled > 0))
+                    Logger.Info($"Periodic sync: pushed={result.GamesPushed}, pulled={result.GamesPulled}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Periodic sync failed: {ex.Message}");
+            }
+        }
+
+        private bool _api_has_running_game()
+        {
+            try { return PlayniteApi.Database.Games.Any(g => g.IsRunning); }
+            catch { return false; }
+        }
+
+        private string GetSyncStatusText()
+        {
+            if (_syncEngine?.IsSyncing == true) return "Syncing...";
+            if (_syncState == null) return "Not configured";
+            if (!string.IsNullOrEmpty(_syncState.LastSyncError)) return $"Error: {_syncState.LastSyncError}";
+            if (_syncState.IsRegistered) return "Connected";
+            if (!string.IsNullOrEmpty(_syncState.ClientId)) return "Pending approval";
+            return "Not connected";
+        }
+
+        private bool ApproveAndStart(string code)
+        {
+            if (_syncEngine == null) return false;
+            var success = _syncEngine.ApproveWithCode(code);
+            if (success)
+            {
+                _settingsViewModel.Settings.SyncEnabled = true;
+                StartSyncTimer();
+            }
+            return success;
+        }
+
+        private bool PollAndStart()
+        {
+            if (_syncEngine == null) return false;
+            var approved = _syncEngine.PollApproval();
+            if (approved)
+            {
+                _settingsViewModel.Settings.SyncEnabled = true;
+                StartSyncTimer();
+            }
+            return approved;
+        }
+
+        private void TriggerSyncNow()
+        {
+            if (_syncEngine == null || !_syncState.IsRegistered) return;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                var result = _syncEngine.RunSync();
+                PlayniteApi.Notifications.Add(new NotificationMessage("sync",
+                    result.Success
+                        ? $"Sync complete: {result.GamesPushed} pushed, {result.GamesPulled} pulled"
+                        : $"Sync failed: {result.Error}",
+                    result.Success ? NotificationType.Info : NotificationType.Error));
+            });
+        }
+
+        private void TriggerFullResync()
+        {
+            if (_syncEngine == null || !_syncState.IsRegistered) return;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                var result = _syncEngine.RunFullResync();
+                PlayniteApi.Notifications.Add(new NotificationMessage("sync",
+                    result.Success
+                        ? $"Full resync: {result.GamesPushed} pushed, {result.GamesPulled} pulled"
+                        : $"Resync failed: {result.Error}",
+                    result.Success ? NotificationType.Info : NotificationType.Error));
+            });
+        }
+
+        #endregion
 
         #region Network
 

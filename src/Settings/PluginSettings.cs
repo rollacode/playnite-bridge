@@ -6,9 +6,27 @@ namespace PlayniteBridge.Settings
 
     public class PluginSettings : ObservableObject
     {
-        // Settings are saved/loaded automatically by Playnite.
-        // Currently no persistent settings — the panel is used for
-        // status display and quick actions (token copy, AI skill, etc.).
+        private bool _syncEnabled;
+        private string _syncBackendUrl = "";
+        private int _syncIntervalMinutes = 15;
+
+        public bool SyncEnabled
+        {
+            get => _syncEnabled;
+            set => SetValue(ref _syncEnabled, value);
+        }
+
+        public string SyncBackendUrl
+        {
+            get => _syncBackendUrl;
+            set => SetValue(ref _syncBackendUrl, value);
+        }
+
+        public int SyncIntervalMinutes
+        {
+            get => _syncIntervalMinutes;
+            set => SetValue(ref _syncIntervalMinutes, value);
+        }
     }
 
     public class PluginSettingsViewModel : ObservableObject, ISettings

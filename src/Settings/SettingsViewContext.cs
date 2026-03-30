@@ -1,6 +1,7 @@
 namespace PlayniteBridge.Settings
 {
     using System;
+    using System.Collections.Generic;
     using Playnite.SDK;
 
     /// <summary>
@@ -20,5 +21,15 @@ namespace PlayniteBridge.Settings
         public Action RotateToken { get; set; }
         public IPlayniteAPI PlayniteApi { get; set; }
         public int Port { get; set; }
+
+        // Sync
+        public Func<string> GetSyncStatus { get; set; }
+        public Func<string> GetLastSyncTime { get; set; }
+        public Func<List<Services.DiscoveredBackend>> DiscoverBackends { get; set; }
+        public Func<string, string> RequestConnection { get; set; } // url → clientId
+        public Func<string, bool> ApproveWithCode { get; set; } // code → success
+        public Func<bool> PollApproval { get; set; }
+        public Action TriggerSync { get; set; }
+        public Action TriggerFullResync { get; set; }
     }
 }

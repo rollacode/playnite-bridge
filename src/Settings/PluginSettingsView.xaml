@@ -100,6 +100,129 @@
                 </StackPanel>
             </Border>
 
+            <!-- Sync -->
+            <Border BorderThickness="3,0,0,0" BorderBrush="{DynamicResource WarningBrush}"
+                    Padding="16,10,0,10" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Sync"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
+                               Foreground="{DynamicResource TextBrushDarker}" FontSize="{DynamicResource FontSizeSmall}">
+                        Sync your game library across multiple PCs — playtime, categories, tags, and more.
+                        Requires the Playnite Sync backend running on your network.
+                    </TextBlock>
+                    <TextBlock Margin="0,0,0,12" FontSize="{DynamicResource FontSizeSmall}">
+                        <Hyperlink NavigateUri="https://github.com/rollacode/playnite-bridge/releases"
+                                   RequestNavigate="Hyperlink_RequestNavigate">
+                            Download Playnite Sync backend from GitHub
+                        </Hyperlink>
+                    </TextBlock>
+
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Status:"/>
+                        <TextBlock Grid.Column="1" x:Name="SyncStatusText"
+                                   Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Last Sync:"/>
+                        <TextBlock Grid.Column="1" x:Name="SyncLastTimeText"
+                                   Foreground="{DynamicResource TextBrushDarker}" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Discovery / Connect -->
+                    <TextBlock Style="{StaticResource SubHeader}" Text="Connect to Backend" Margin="0,8,0,6"/>
+
+                    <StackPanel x:Name="PanelDiscovery">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button x:Name="BtnDetectBackend" Content="Scan for Backends"
+                                    HorizontalAlignment="Left" Padding="12,5"
+                                    Click="BtnDetectBackend_Click"/>
+                            <TextBlock x:Name="ScanSpinner" Text="  Scanning network..."
+                                       VerticalAlignment="Center" Visibility="Collapsed"
+                                       Foreground="{DynamicResource TextBrushDarker}"
+                                       FontStyle="Italic"/>
+                        </StackPanel>
+
+                        <ItemsControl x:Name="DiscoveredList" Margin="0,0,0,8"/>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Or URL:"/>
+                            <TextBox Grid.Column="1" x:Name="SyncUrlBox"
+                                     Text="{Binding Settings.SyncBackendUrl, Mode=TwoWay}"
+                                     Padding="8,6" Margin="0,0,8,0">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+                            <Button Grid.Column="2" x:Name="BtnConnectUrl" Content="Connect"
+                                    Padding="12,5" Click="BtnConnectUrl_Click"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Pending Approval -->
+                    <StackPanel x:Name="PanelPending" Visibility="Collapsed">
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
+                                   Foreground="{DynamicResource TextBrushDarker}">
+                            Connection requested. To approve:
+                        </TextBlock>
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
+                                   Foreground="{DynamicResource TextBrush}">
+                            1. Open the sync backend dashboard → Clients → click Approve
+                        </TextBlock>
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
+                                   Foreground="{DynamicResource TextBrush}">
+                            2. Or enter the registration code from the backend Settings page:
+                        </TextBlock>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="PSR Code:"/>
+                            <TextBox Grid.Column="1" x:Name="SyncCodeBox"
+                                     Padding="8,6" Margin="0,0,8,0"
+                                     Foreground="{DynamicResource TextBrush}"/>
+                            <Button Grid.Column="2" x:Name="BtnApproveCode" Content="Submit"
+                                    Padding="12,5" Click="BtnApproveCode_Click"/>
+                        </Grid>
+                        <Button x:Name="BtnCancelPending" Content="Cancel"
+                                HorizontalAlignment="Left" Padding="12,5"
+                                Click="BtnCancelPending_Click"/>
+                    </StackPanel>
+
+                    <!-- Connected Controls -->
+                    <StackPanel x:Name="PanelConnected" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                            <Button x:Name="BtnSyncNow" Content="Sync Now"
+                                    Padding="12,5" Click="BtnSyncNow_Click"/>
+                            <Button x:Name="BtnFullResync" Content="Full Resync"
+                                    Padding="12,5" Margin="8,0,0,0" Click="BtnFullResync_Click"/>
+                        </StackPanel>
+
+                        <CheckBox Content="Enable automatic sync"
+                                  IsChecked="{Binding Settings.SyncEnabled, Mode=TwoWay}"
+                                  Margin="0,4,0,0"
+                                  Foreground="{DynamicResource TextBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- AI Integration -->
             <Border BorderThickness="3,0,0,0" BorderBrush="{DynamicResource HighlightGlyphBrush}"
                     Padding="16,10,0,10" Margin="0,0,0,20">

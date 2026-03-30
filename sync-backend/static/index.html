@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playnite Sync</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Titlebar -->
+    <div class="titlebar">
+        <div class="titlebar-left">
+            <svg class="titlebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/>
+                <circle cx="20" cy="6" r="2" fill="currentColor" stroke="none"/>
+            </svg>
+            <span class="titlebar-title">PLAYNITE SYNC</span>
+            <span class="titlebar-version">v0.1.0</span>
+        </div>
+        <div class="titlebar-right">
+            <div id="server-status" class="server-status offline">
+                <span class="pulse-dot"></span>
+                <span class="status-text">OFFLINE</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav>
+                <button class="nav-item active" data-page="overview">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zm10 0a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+                    Overview
+                </button>
+                <button class="nav-item" data-page="games">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zm0 16a3 3 0 01-3-3h6a3 3 0 01-3 3z"/></svg>
+                    Library
+                </button>
+                <button class="nav-item" data-page="sync-log">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+                    Sync Log
+                </button>
+                <button class="nav-item" data-page="settings">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+                    Settings
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="mini-stats">
+                    <div class="mini-stat">
+                        <span class="mini-stat-val" id="sidebar-games">—</span>
+                        <span class="mini-stat-label">games</span>
+                    </div>
+                    <div class="mini-stat">
+                        <span class="mini-stat-val" id="sidebar-clients">—</span>
+                        <span class="mini-stat-label">clients</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Content -->
+        <main class="content">
+            <!-- Overview -->
+            <section id="page-overview" class="page active">
+                <div class="page-header">
+                    <h1>Overview</h1>
+                    <button class="btn-ghost" onclick="loadOverview()" title="Refresh">
+                        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M8 3a5 5 0 104.546 2.914.5.5 0 01.908-.418A6 6 0 118 2v1z"/><path d="M8 4.466V.534a.25.25 0 01.41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 018 4.466z"/></svg>
+                    </button>
+                </div>
+
+                <div class="metric-row">
+                    <div class="metric-card">
+                        <div class="metric-icon games-icon">
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6z"/></svg>
+                        </div>
+                        <div class="metric-data">
+                            <div class="metric-value" id="stat-games">—</div>
+                            <div class="metric-label">Total Games</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon clients-icon">
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clip-rule="evenodd"/></svg>
+                        </div>
+                        <div class="metric-data">
+                            <div class="metric-value" id="stat-clients">—</div>
+                            <div class="metric-label">Connected</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon time-icon">
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+                        </div>
+                        <div class="metric-data">
+                            <div class="metric-value" id="stat-playtime">—</div>
+                            <div class="metric-label">Total Hours</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon sync-icon">
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+                        </div>
+                        <div class="metric-data">
+                            <div class="metric-value" id="stat-syncs">—</div>
+                            <div class="metric-label">Syncs Today</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="pending-section" class="card" style="display:none;border-color:var(--amber);margin-bottom:12px">
+                    <div class="card-header">
+                        <h2 style="color:var(--amber)">Pending Approval</h2>
+                    </div>
+                    <div class="card-body no-pad">
+                        <table class="table-compact">
+                            <thead><tr><th>Machine</th><th>Requested</th><th></th></tr></thead>
+                            <tbody id="pending-overview"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid-2col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Clients</h2>
+                        </div>
+                        <div class="card-body">
+                            <table class="table-compact">
+                                <thead><tr><th>Machine</th><th>Games</th><th>Seen</th><th>Sync</th><th></th></tr></thead>
+                                <tbody id="clients-overview"></tbody>
+                            </table>
+                            <div id="clients-empty" class="empty-state" style="display:none">
+                                <span>No clients connected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Sources</h2>
+                        </div>
+                        <div class="card-body">
+                            <div id="sources-chart" class="sources-bars"></div>
+                            <div id="sources-empty" class="empty-state" style="display:none">
+                                <span>No data yet</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Recent Activity</h2>
+                    </div>
+                    <div class="card-body">
+                        <table class="table-compact">
+                            <thead><tr><th>Client</th><th>Type</th><th>Dir</th><th>Records</th><th>Status</th><th>Time</th></tr></thead>
+                            <tbody id="recent-syncs"></tbody>
+                        </table>
+                        <div id="activity-empty" class="empty-state" style="display:none">
+                            <span>No sync activity</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Games / Library -->
+            <section id="page-games" class="page">
+                <div class="page-header">
+                    <h1>Library</h1>
+                    <span class="header-count" id="games-count"></span>
+                </div>
+                <div class="toolbar">
+                    <div class="search-field">
+                        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M11.5 7a4.499 4.499 0 11-8.998 0A4.499 4.499 0 0111.5 7zm-.82 4.74a6 6 0 111.06-1.06l3.04 3.04a.75.75 0 11-1.06 1.06l-3.04-3.04z"/></svg>
+                        <input type="text" id="game-search" placeholder="Search games...">
+                    </div>
+                    <select id="game-source-filter" class="select-field"><option value="">All Sources</option></select>
+                    <select id="game-sort" class="select-field">
+                        <option value="name">Name</option>
+                        <option value="playtime">Playtime</option>
+                        <option value="lastplayed">Last Played</option>
+                        <option value="added">Added</option>
+                    </select>
+                </div>
+                <div class="card">
+                    <div class="card-body no-pad" id="games-scroll-container" style="max-height:calc(100vh - 200px);overflow-y:auto">
+                        <table class="table-full">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th style="width:100px">Source</th>
+                                    <th style="width:90px">Playtime</th>
+                                    <th style="width:110px">Last Played</th>
+                                    <th style="width:110px">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="games-table"></tbody>
+                        </table>
+                        <div id="games-loading" class="empty-state" style="display:none;padding:12px">
+                            <span style="color:var(--text-muted)">Loading more...</span>
+                        </div>
+                    </div>
+                    <div id="games-info" class="table-footer"></div>
+                </div>
+            </section>
+
+            <!-- Sync Log -->
+            <section id="page-sync-log" class="page">
+                <div class="page-header">
+                    <h1>Sync Log</h1>
+                    <button class="btn-ghost" onclick="loadSyncLog()">
+                        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M8 3a5 5 0 104.546 2.914.5.5 0 01.908-.418A6 6 0 118 2v1z"/><path d="M8 4.466V.534a.25.25 0 01.41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 018 4.466z"/></svg>
+                    </button>
+                </div>
+                <div class="card">
+                    <div class="card-body no-pad">
+                        <table class="table-full">
+                            <thead>
+                                <tr>
+                                    <th>Client</th>
+                                    <th>Entity</th>
+                                    <th>Direction</th>
+                                    <th>Records</th>
+                                    <th>Status</th>
+                                    <th>Time</th>
+                                    <th>Error</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sync-log-table"></tbody>
+                        </table>
+                        <div id="synclog-empty" class="empty-state" style="display:none">
+                            <span>No sync operations recorded</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings -->
+            <section id="page-settings" class="page">
+                <div class="page-header">
+                    <h1>Settings</h1>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Server</div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Registration Code</div>
+                            <div class="setting-desc">Share this code with Playnite clients to connect</div>
+                        </div>
+                        <div class="setting-control">
+                            <div class="key-display">
+                                <code id="setting-regcode" class="key-value" style="font-size:14px;font-weight:600;color:var(--accent);letter-spacing:2px">loading...</code>
+                                <button class="btn-icon" onclick="copyRegCode()" title="Copy">
+                                    <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Port</div>
+                            <div class="setting-desc">HTTP API port for sync communication</div>
+                        </div>
+                        <div class="setting-control">
+                            <input type="number" id="setting-port" class="input-field input-sm" value="19822" readonly>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Launch on Startup</div>
+                            <div class="setting-desc">Start sync server when Windows boots</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" id="setting-autostart">
+                                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Sync</div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Sync Interval</div>
+                            <div class="setting-desc">How often clients push updates</div>
+                        </div>
+                        <div class="setting-control">
+                            <select id="setting-interval" class="select-field">
+                                <option value="5">5 minutes</option>
+                                <option value="15" selected>15 minutes</option>
+                                <option value="30">30 minutes</option>
+                                <option value="60">1 hour</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Log Retention</div>
+                            <div class="setting-desc">Days to keep sync log entries</div>
+                        </div>
+                        <div class="setting-control">
+                            <select id="setting-retention" class="select-field">
+                                <option value="7">7 days</option>
+                                <option value="30" selected>30 days</option>
+                                <option value="90">90 days</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-group-title">Database</div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Location</div>
+                            <div class="setting-desc">SQLite database file path</div>
+                        </div>
+                        <div class="setting-control">
+                            <code class="path-display">./playnite-sync.db</code>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

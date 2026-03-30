@@ -1,6 +1,7 @@
 namespace PlayniteBridge.Settings
 {
     using System;
+    using System.Collections.Generic;
     using System.IO;
     using System.Text;
     using System.Windows;
@@ -23,6 +24,17 @@ namespace PlayniteBridge.Settings
         private readonly IPlayniteAPI _playniteApi;
         private readonly int _port;
 
+        // Sync
+        private readonly Func<string> _getSyncStatus;
+        private readonly Func<string> _getLastSyncTime;
+        private readonly Func<List<PlayniteBridge.Services.DiscoveredBackend>> _discoverBackends;
+        private readonly Func<string, string> _requestConnection;
+        private readonly Func<string, bool> _approveWithCode;
+        private readonly Func<bool> _pollApproval;
+        private readonly Action _triggerSync;
+        private readonly Action _triggerFullResync;
+        private DispatcherTimer _pollTimer;
+
         public PluginSettingsView(SettingsViewContext ctx)
         {
             InitializeComponent();
@@ -38,12 +50,22 @@ namespace PlayniteBridge.Settings
             _playniteApi = ctx.PlayniteApi;
             _port = ctx.Port;
 
+            _getSyncStatus = ctx.GetSyncStatus;
+            _getLastSyncTime = ctx.GetLastSyncTime;
+            _discoverBackends = ctx.DiscoverBackends;
+            _requestConnection = ctx.RequestConnection;
+            _approveWithCode = ctx.ApproveWithCode;
+            _pollApproval = ctx.PollApproval;
+            _triggerSync = ctx.TriggerSync;
+            _triggerFullResync = ctx.TriggerFullResync;
+
             Loaded += OnLoaded;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             RefreshStatus();
+            RefreshSyncStatus();
         }
 
         private void RefreshStatus()
@@ -188,6 +210,12 @@ namespace PlayniteBridge.Settings
             }
         }
 
+        private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+        {
+            System.Diagnostics.Process.Start(e.Uri.AbsoluteUri);
+            e.Handled = true;
+        }
+
         private void BtnCopyChatGptUrl_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -198,6 +226,184 @@ namespace PlayniteBridge.Settings
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to copy URL");
+            }
+        }
+
+        // --- Sync ---
+
+        private void RefreshSyncStatus()
+        {
+            var status = _getSyncStatus?.Invoke() ?? "Not configured";
+            SyncStatusText.Text = status;
+
+            var isConnected = status == "Connected";
+            var isPending = status == "Pending approval";
+            SyncStatusText.Foreground = isConnected
+                ? new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50))
+                : isPending
+                    ? new SolidColorBrush(Color.FromRgb(0xFF, 0xC1, 0x07))
+                    : new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00));
+
+            var lastSync = _getLastSyncTime?.Invoke();
+            SyncLastTimeText.Text = string.IsNullOrEmpty(lastSync) ? "Never" : lastSync;
+
+            // Show correct panel
+            PanelDiscovery.Visibility = (!isConnected && !isPending) ? Visibility.Visible : Visibility.Collapsed;
+            PanelPending.Visibility = isPending ? Visibility.Visible : Visibility.Collapsed;
+            PanelConnected.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void BtnSyncNow_Click(object sender, RoutedEventArgs e)
+        {
+            _triggerSync?.Invoke();
+            FlashButton(BtnSyncNow, "Syncing...");
+
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            timer.Tick += (s, ev) =>
+            {
+                RefreshSyncStatus();
+                timer.Stop();
+            };
+            timer.Start();
+        }
+
+        private void BtnDetectBackend_Click(object sender, RoutedEventArgs e)
+        {
+            BtnDetectBackend.IsEnabled = false;
+            ScanSpinner.Visibility = Visibility.Visible;
+            DiscoveredList.Items.Clear();
+
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                var backends = _discoverBackends?.Invoke() ?? new List<Services.DiscoveredBackend>();
+                Dispatcher.Invoke(() =>
+                {
+                    BtnDetectBackend.IsEnabled = true;
+                    ScanSpinner.Visibility = Visibility.Collapsed;
+
+                    if (backends.Count == 0)
+                    {
+                        DiscoveredList.Items.Add(new TextBlock
+                        {
+                            Text = "No backends found on network",
+                            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00)),
+                            Margin = new Thickness(0, 0, 0, 4)
+                        });
+                    }
+                    else
+                    {
+                        foreach (var b in backends)
+                        {
+                            var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+                            var via = b.ViaTailscale ? "Tailscale" : "LAN";
+                            var label = $"{b.Hostname} ({via}) — {b.Url}";
+                            panel.Children.Add(new TextBlock
+                            {
+                                Text = label,
+                                VerticalAlignment = VerticalAlignment.Center,
+                                MinWidth = 300,
+                                Foreground = (Brush)FindResource("TextBrush")
+                            });
+                            var btn = new Button { Content = "Connect", Padding = new Thickness(12, 5, 12, 5) };
+                            var url = b.Url;
+                            btn.Click += (s2, ev2) => StartConnection(url);
+                            panel.Children.Add(btn);
+                            DiscoveredList.Items.Add(panel);
+                        }
+                    }
+                });
+            });
+        }
+
+        private void BtnConnectUrl_Click(object sender, RoutedEventArgs e)
+        {
+            var url = SyncUrlBox.Text?.Trim();
+            if (!string.IsNullOrEmpty(url)) StartConnection(url);
+        }
+
+        private void StartConnection(string url)
+        {
+            var clientId = _requestConnection?.Invoke(url);
+            if (string.IsNullOrEmpty(clientId))
+            {
+                _playniteApi.Dialogs.ShowMessage("Failed to contact backend.", "Playnite Bridge");
+                return;
+            }
+
+            // Switch to pending state
+            PanelDiscovery.Visibility = Visibility.Collapsed;
+            PanelPending.Visibility = Visibility.Visible;
+            RefreshSyncStatus();
+
+            // Start polling for approval
+            _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            _pollTimer.Tick += (s, ev) =>
+            {
+                var approved = _pollApproval?.Invoke() ?? false;
+                if (approved)
+                {
+                    _pollTimer.Stop();
+                    OnConnected();
+                }
+            };
+            _pollTimer.Start();
+        }
+
+        private void BtnApproveCode_Click(object sender, RoutedEventArgs e)
+        {
+            var code = SyncCodeBox.Text?.Trim();
+            if (string.IsNullOrEmpty(code)) return;
+
+            var success = _approveWithCode?.Invoke(code) ?? false;
+            if (success)
+            {
+                _pollTimer?.Stop();
+                OnConnected();
+            }
+            else
+            {
+                _playniteApi.Dialogs.ShowMessage("Invalid code. Check the backend dashboard for the PSR code.", "Playnite Bridge");
+            }
+        }
+
+        private void BtnCancelPending_Click(object sender, RoutedEventArgs e)
+        {
+            _pollTimer?.Stop();
+            PanelPending.Visibility = Visibility.Collapsed;
+            PanelDiscovery.Visibility = Visibility.Visible;
+            RefreshSyncStatus();
+        }
+
+        private void OnConnected()
+        {
+            PanelPending.Visibility = Visibility.Collapsed;
+            PanelConnected.Visibility = Visibility.Visible;
+            SyncStatusText.Text = "Connected — syncing...";
+            SyncStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));
+
+            // Trigger first sync immediately
+            _triggerSync?.Invoke();
+
+            // Refresh status after a few seconds
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            timer.Tick += (s, ev) =>
+            {
+                RefreshSyncStatus();
+                timer.Stop();
+            };
+            timer.Start();
+        }
+
+        private void BtnFullResync_Click(object sender, RoutedEventArgs e)
+        {
+            var result = _playniteApi.Dialogs.ShowMessage(
+                "Full resync will re-push all games and re-pull from the server.\n\nContinue?",
+                "Playnite Bridge", MessageBoxButton.YesNo);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                _triggerFullResync?.Invoke();
+                FlashButton(BtnFullResync, "Resyncing...");
             }
         }
     }
