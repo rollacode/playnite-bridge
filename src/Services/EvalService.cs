@@ -72,6 +72,19 @@ namespace PlayniteBridge.Services
                     catch { }
                 }
 
+                // Add facade assemblies that may not be loaded yet
+                var facadeDir = System.IO.Path.Combine(
+                    System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory(),
+                    "Facades");
+                if (System.IO.Directory.Exists(facadeDir))
+                {
+                    foreach (var dll in System.IO.Directory.GetFiles(facadeDir, "*.dll"))
+                    {
+                        try { parms.ReferencedAssemblies.Add(dll); }
+                        catch { }
+                    }
+                }
+
                 var compiled = provider.CompileAssemblyFromSource(parms, source);
 
                 if (compiled.Errors.HasErrors)
