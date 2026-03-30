@@ -111,6 +111,18 @@ namespace PlayniteBridge.Services
             return result != null;
         }
 
+        /// <summary>Delete this client from the backend.</summary>
+        public bool DeleteSelf(string clientId)
+        {
+            return WithRetry(() =>
+            {
+                var request = new HttpRequestMessage(HttpMethod.Delete, $"{_baseUrl}/api/clients/{clientId}");
+                request.Headers.Add("Authorization", $"Bearer {_apiKey}");
+                var response = Http.SendAsync(request).GetAwaiter().GetResult();
+                return response.IsSuccessStatusCode ? "ok" : null;
+            }) != null;
+        }
+
         public SyncNetworkInfo GetNetworkInfo()
         {
             // Network endpoint is public (no auth)

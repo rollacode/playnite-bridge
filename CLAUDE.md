@@ -111,3 +111,4 @@ cd "C:/tools/playnite-sync" && ./playnite-sync.exe
 - **Sync canonical key:** Only games with source + gameId sync
 - **Tailscale discovery timeout:** HttpClient needs 5s+ timeout for peer scanning
 - **Backend DB path:** Relative to working directory, not exe location
+- **Client delete cascade:** `db::clients::delete()` manually cleans all FK-dependent tables. If you add a new table with `client_id` foreign key, add a DELETE there too — SQLite FK cascade is not enabled for this

@@ -26,6 +26,7 @@ pub fn public_routes() -> Router<AppState> {
         .route("/clients/{id}/approve", post(approve_client))
         .route("/clients/{id}/dashboard-approve", post(dashboard_approve))
         .route("/clients/{id}/dashboard-reject", post(dashboard_reject))
+        .route("/clients/{id}/dashboard-remove", post(dashboard_remove))
         // Legacy register endpoint (admin key or reg code required)
         .route("/clients/register", post(register))
 }
@@ -143,6 +144,18 @@ async fn dashboard_reject(
         .map_err(|e| AppError::Internal(e.to_string()))??;
     tracing::info!("Client rejected via dashboard");
     Ok(Json(serde_json::json!({"ok": true})))
+}
+
+/// Dashboard remove client (no auth)
+async fn dashboard_remove(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<Json<serde_json::Value>> {
+    let db = state.db.clone();
+    let deleted = tokio::task::spawn_blocking(move || db::clients::delete(&db, &id)).await
+        .map_err(|e| AppError::Internal(e.to_string()))??;
+    if deleted { tracing::info!("Client removed via dashboard"); }
+    Ok(Json(serde_json::json!({"ok": deleted})))
 }
 
 /// Reject a pending client (admin only)

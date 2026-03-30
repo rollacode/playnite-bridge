@@ -265,8 +265,31 @@ namespace PlayniteBridge
         {
             _syncTimer?.Dispose();
             _syncTimer = null;
+
+            // Save credentials before clearing, then notify backend
+            var clientId = _syncState?.ClientId;
+            var apiKey = _syncState?.ApiKey;
+            var backendUrl = _syncState?.BackendUrl;
+
+            // Clear local state first so UI updates
             _syncState?.Clear();
             _settingsViewModel.Settings.SyncEnabled = false;
+
+            // Then notify backend in background
+            if (!string.IsNullOrEmpty(clientId) && !string.IsNullOrEmpty(apiKey))
+            {
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try
+                    {
+                        var tempClient = new SyncClient(backendUrl, apiKey);
+                        tempClient.DeleteSelf(clientId);
+                        Logger.Info("Client removed from backend");
+                    }
+                    catch (Exception ex) { Logger.Warn($"Failed to notify backend: {ex.Message}"); }
+                });
+            }
+
             Logger.Info("Disconnected from sync backend");
         }
 

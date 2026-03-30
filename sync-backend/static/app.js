@@ -262,9 +262,7 @@ async function approveClient(id) {
 async function removeClient(id) {
     if (!confirm('Remove this client?')) return;
     try {
-        let adminKey = localStorage.getItem('pbs_admin_key');
-        if (!adminKey) { adminKey = prompt('Admin key:'); if (adminKey) localStorage.setItem('pbs_admin_key', adminKey); }
-        await fetch(`${BASE}/clients/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${adminKey}` } });
+        await fetch(`${BASE}/clients/${id}/dashboard-remove`, { method: 'POST' });
         toast('Client removed');
         loadOverview();
     } catch (e) { toast('Failed: ' + e.message); }

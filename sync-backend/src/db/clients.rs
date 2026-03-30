@@ -123,8 +123,17 @@ pub fn update_last_seen(db: &Db, client_id: &str, ip: Option<&str>) -> AppResult
     Ok(())
 }
 
+/// Delete a client and all dependent records (cascade).
+/// IMPORTANT: If you add a new table with client_id FK, add a DELETE here too.
 pub fn delete(db: &Db, client_id: &str) -> AppResult<bool> {
     let conn = db.lock().unwrap();
+    conn.execute("DELETE FROM client_games WHERE client_id = ?1", rusqlite::params![client_id])?;
+    conn.execute("DELETE FROM sync_cursors WHERE client_id = ?1", rusqlite::params![client_id])?;
+    conn.execute("DELETE FROM sync_log WHERE client_id = ?1", rusqlite::params![client_id])?;
+    conn.execute("DELETE FROM client_commands WHERE client_id = ?1", rusqlite::params![client_id])?;
+    conn.execute("DELETE FROM game_aliases WHERE client_id = ?1", rusqlite::params![client_id])?;
+    conn.execute("DELETE FROM collection_tombstones WHERE removed_by = ?1", rusqlite::params![client_id])?;
+    conn.execute("DELETE FROM play_sessions WHERE client_id = ?1", rusqlite::params![client_id])?;
     let changed = conn.execute("DELETE FROM clients WHERE id = ?1", rusqlite::params![client_id])?;
     Ok(changed > 0)
 }
