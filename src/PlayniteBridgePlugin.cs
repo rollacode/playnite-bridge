@@ -77,7 +77,7 @@ namespace PlayniteBridge
 
             Logger.Info($"Playnite Bridge API started on port {HttpPort}");
 
-            if (!_server.IsNetworkBound)
+            if (!_server.IsNetworkBound && !_settingsViewModel.Settings.NetworkPromptDismissed)
             {
                 var result = PlayniteApi.Dialogs.ShowMessage(
                     "Playnite Bridge is running on localhost only.\n\n" +
@@ -89,6 +89,11 @@ namespace PlayniteBridge
 
                 if (result == System.Windows.MessageBoxResult.Yes)
                     EnableNetworkAccess();
+                else
+                {
+                    _settingsViewModel.Settings.NetworkPromptDismissed = true;
+                    _settingsViewModel.EndEdit();
+                }
             }
 
             // Initialize sync
@@ -306,7 +311,7 @@ namespace PlayniteBridge
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = $"/c netsh http add urlacl url=http://+:{HttpPort}/ user=Everyone && netsh advfirewall firewall add rule name=\"Playnite Bridge\" dir=in action=allow protocol=tcp localport={HttpPort}",
+                    Arguments = $"/c netsh http add urlacl url=http://+:{HttpPort}/ sddl=D:(A;;GX;;;S-1-1-0) && netsh advfirewall firewall add rule name=\"Playnite Bridge\" dir=in action=allow protocol=tcp localport={HttpPort}",
                     Verb = "runas", UseShellExecute = true, CreateNoWindow = false
                 };
                 var proc = System.Diagnostics.Process.Start(psi);

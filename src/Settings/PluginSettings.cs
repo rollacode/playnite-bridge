@@ -9,6 +9,13 @@ namespace PlayniteBridge.Settings
         private bool _syncEnabled;
         private string _syncBackendUrl = "";
         private int _syncIntervalMinutes = 15;
+        private bool _networkPromptDismissed;
+
+        public bool NetworkPromptDismissed
+        {
+            get => _networkPromptDismissed;
+            set => SetValue(ref _networkPromptDismissed, value);
+        }
 
         public bool SyncEnabled
         {

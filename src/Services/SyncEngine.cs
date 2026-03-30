@@ -213,24 +213,30 @@ namespace PlayniteBridge.Services
 
             if (!full && !string.IsNullOrEmpty(_state.LastPushCursor))
             {
-                DateTime parsed;
-                if (DateTime.TryParse(_state.LastPushCursor, out parsed))
-                    since = parsed;
+                DateTimeOffset parsed;
+                if (DateTimeOffset.TryParse(_state.LastPushCursor, out parsed))
+                    since = parsed.UtcDateTime;
             }
 
             // Collect games with canonical keys, changed since cursor
-            var games = _api.Database.Games
-                .Where(g => HasCanonicalKey(g))
-                .Where(g => since == null || g.Modified == null || g.Modified > since)
+            var allGames = _api.Database.Games
+                .Where(g => since == null || g.Modified == null || g.Modified.Value.ToUniversalTime() > since)
                 .ToList();
+
+            var games = allGames.Where(g => HasCanonicalKey(g)).ToList();
+            var skippedCount = allGames.Count - games.Count;
 
             if (games.Count == 0)
             {
-                Logger.Info("No games to push");
+                if (skippedCount > 0)
+                    Logger.Info($"No syncable games ({skippedCount} skipped — no source or gameId)");
+                else
+                    Logger.Info("No games to push");
+                result.GamesSkipped = skippedCount;
                 return result;
             }
 
-            Logger.Info($"Pushing {games.Count} games (full={full})");
+            Logger.Info($"Pushing {games.Count} games, {skippedCount} skipped (full={full})");
 
             // Batch and push
             for (int i = 0; i < games.Count; i += PushBatchSize)
