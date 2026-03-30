@@ -444,12 +444,17 @@ namespace PlayniteBridge.Services
 
             var game = new Game(name);
 
-            // Source
+            // Source — create if missing
             var source = GetString(data, "source");
             if (!string.IsNullOrEmpty(source))
             {
                 var src = _api.Database.Sources.FirstOrDefault(s => s.Name == source);
-                if (src != null) game.SourceId = src.Id;
+                if (src == null)
+                {
+                    src = new Playnite.SDK.Models.GameSource(source);
+                    _api.Database.Sources.Add(src);
+                }
+                game.SourceId = src.Id;
             }
 
             // GameId
