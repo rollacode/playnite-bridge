@@ -194,9 +194,10 @@ namespace PlayniteBridge
         private void InitSync()
         {
             _syncState = SyncState.Load(GetPluginUserDataPath());
-            _syncClient = new SyncClient(
-                _settingsViewModel.Settings.SyncBackendUrl,
-                _syncState.ApiKey ?? "");
+            var backendUrl = !string.IsNullOrEmpty(_syncState.BackendUrl)
+                ? _syncState.BackendUrl
+                : _settingsViewModel.Settings.SyncBackendUrl;
+            _syncClient = new SyncClient(backendUrl, _syncState.ApiKey ?? "");
             _syncEngine = new SyncEngine(PlayniteApi, _syncClient, _syncState,
                 _serializer, _resolver, () => GetPluginUserDataPath());
 
