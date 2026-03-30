@@ -340,18 +340,26 @@ namespace PlayniteBridge.Services
 
         private Game FindLocalGame(Dictionary<string, object> data)
         {
-            // Match by gameId + source (canonical key)
             var gameId = GetString(data, "gameId");
             var source = GetString(data, "source");
 
-            if (!string.IsNullOrEmpty(gameId) && !string.IsNullOrEmpty(source))
+            if (!string.IsNullOrEmpty(gameId))
             {
-                var match = _api.Database.Games.FirstOrDefault(g =>
-                    g.GameId == gameId && g.Source != null && g.Source.Name == source);
-                if (match != null) return match;
+                // 1. Exact match: gameId + source
+                if (!string.IsNullOrEmpty(source))
+                {
+                    var match = _api.Database.Games.FirstOrDefault(g =>
+                        g.GameId == gameId && g.Source != null && g.Source.Name == source);
+                    if (match != null) return match;
+                }
+
+                // 2. Match sourceless local game with same gameId (Ally has games without Source)
+                var byGameId = _api.Database.Games.FirstOrDefault(g =>
+                    g.GameId == gameId && g.Source == null);
+                if (byGameId != null) return byGameId;
             }
 
-            // Fallback: try by server ID (might be our own Playnite GUID)
+            // 3. Fallback: try by server ID (might be our own Playnite GUID)
             var id = GetString(data, "id");
             if (!string.IsNullOrEmpty(id))
             {
@@ -369,6 +377,20 @@ namespace PlayniteBridge.Services
         private bool ApplyFields(Game game, Dictionary<string, object> data)
         {
             bool changed = false;
+
+            // Fill missing Source from server data
+            var source = GetString(data, "source");
+            if (game.Source == null && !string.IsNullOrEmpty(source))
+            {
+                var src = _api.Database.Sources.FirstOrDefault(s => s.Name == source);
+                if (src == null)
+                {
+                    src = new Playnite.SDK.Models.GameSource(source);
+                    _api.Database.Sources.Add(src);
+                }
+                game.SourceId = src.Id;
+                changed = true;
+            }
 
             // Playtime: only update if server has more (MAX)
             var pt = GetLong(data, "playtime");
