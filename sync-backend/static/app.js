@@ -406,6 +406,24 @@ async function loadSettings() {
     } catch (e) {
         document.getElementById('setting-regcode').textContent = '—';
     }
+    try {
+        const autostart = await api('/config/autostart');
+        document.getElementById('setting-autostart').checked = autostart.enabled;
+    } catch (_) {}
+
+    document.getElementById('setting-autostart').onchange = async function() {
+        try {
+            await fetch(`${BASE}/config/autostart`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: this.checked }),
+            });
+            toast(this.checked ? 'Autostart enabled' : 'Autostart disabled');
+        } catch (e) {
+            toast('Failed: ' + e.message);
+            this.checked = !this.checked;
+        }
+    };
 }
 
 function copyRegCode() {

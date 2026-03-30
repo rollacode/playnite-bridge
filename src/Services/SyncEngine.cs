@@ -22,6 +22,7 @@ namespace PlayniteBridge.Services
         private readonly Func<string> _getPluginDataPath;
         private readonly object _syncLock = new object();
         private volatile bool _isSyncing;
+        internal volatile bool IsApplyingPull;
 
         public bool IsSyncing => _isSyncing;
         public string LastError => _state?.LastSyncError;
@@ -303,6 +304,7 @@ namespace PlayniteBridge.Services
         {
             int updated = 0, created = 0;
 
+            IsApplyingPull = true;
             _api.MainView.UIDispatcher.Invoke(() =>
             {
                 foreach (var data in items)
@@ -334,6 +336,7 @@ namespace PlayniteBridge.Services
                     }
                 }
             });
+            IsApplyingPull = false;
 
             return Tuple.Create(updated, created);
         }
@@ -404,7 +407,13 @@ namespace PlayniteBridge.Services
             if (!string.IsNullOrEmpty(completionStatus) && (game.CompletionStatus?.Name ?? "") != completionStatus)
             {
                 var cs = _api.Database.CompletionStatuses.FirstOrDefault(s => s.Name == completionStatus);
-                if (cs != null) { game.CompletionStatusId = cs.Id; changed = true; }
+                if (cs == null)
+                {
+                    cs = new Playnite.SDK.Models.CompletionStatus(completionStatus);
+                    _api.Database.CompletionStatuses.Add(cs);
+                }
+                game.CompletionStatusId = cs.Id;
+                changed = true;
             }
 
             // Categories (UNION from server)

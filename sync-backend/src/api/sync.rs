@@ -24,10 +24,76 @@ pub fn public_routes() -> Router<AppState> {
     Router::new()
         .route("/network", get(network_info))
         .route("/config/regcode", get(get_regcode))
+        .route("/config/autostart", get(get_autostart).post(set_autostart))
 }
 
 async fn get_regcode(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(serde_json::json!({"code": state.registration_code}))
+}
+
+async fn get_autostart() -> Json<serde_json::Value> {
+    let enabled = autostart_shortcut_exists();
+    Json(serde_json::json!({"enabled": enabled}))
+}
+
+#[derive(serde::Deserialize)]
+struct AutostartRequest { enabled: bool }
+
+async fn set_autostart(Json(req): Json<AutostartRequest>) -> AppResult<Json<serde_json::Value>> {
+    if req.enabled {
+        create_autostart_shortcut()?;
+    } else {
+        remove_autostart_shortcut()?;
+    }
+    Ok(Json(serde_json::json!({"ok": true, "enabled": req.enabled})))
+}
+
+fn startup_shortcut_path() -> std::path::PathBuf {
+    let appdata = std::env::var("APPDATA").unwrap_or_default();
+    std::path::PathBuf::from(appdata)
+        .join("Microsoft/Windows/Start Menu/Programs/Startup/PlayniteSync.lnk")
+}
+
+fn autostart_shortcut_exists() -> bool {
+    startup_shortcut_path().exists()
+}
+
+fn create_autostart_shortcut() -> AppResult<()> {
+    let exe = std::env::current_exe().map_err(|e| AppError::Internal(e.to_string()))?;
+    let working_dir = exe.parent().unwrap_or(std::path::Path::new("."));
+    let shortcut_path = startup_shortcut_path();
+
+    let script = format!(
+        "$ws = New-Object -ComObject WScript.Shell; \
+         $s = $ws.CreateShortcut('{}'); \
+         $s.TargetPath = '{}'; \
+         $s.WorkingDirectory = '{}'; \
+         $s.Description = 'Playnite Sync Backend'; \
+         $s.Save()",
+        shortcut_path.display(),
+        exe.display(),
+        working_dir.display()
+    );
+
+    let output = std::process::Command::new("powershell")
+        .args(["-Command", &script])
+        .output()
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    if !output.status.success() {
+        return Err(AppError::Internal("Failed to create startup shortcut".into()));
+    }
+    tracing::info!("Autostart enabled");
+    Ok(())
+}
+
+fn remove_autostart_shortcut() -> AppResult<()> {
+    let path = startup_shortcut_path();
+    if path.exists() {
+        std::fs::remove_file(&path).map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+    tracing::info!("Autostart disabled");
+    Ok(())
 }
 
 async fn push(

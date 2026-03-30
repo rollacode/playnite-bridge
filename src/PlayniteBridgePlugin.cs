@@ -33,6 +33,7 @@ namespace PlayniteBridge
         private GameSerializationService _serializer;
         private CollectionResolver _resolver;
         private Timer _syncTimer;
+        private Timer _debounceSyncTimer;
 
         public override Guid Id => Guid.Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479");
 
@@ -134,6 +135,9 @@ namespace PlayniteBridge
         public override void Dispose()
         {
             _syncTimer?.Dispose();
+            _debounceSyncTimer?.Dispose();
+            if (PlayniteApi?.Database?.Games != null)
+                PlayniteApi.Database.Games.ItemUpdated -= OnGameUpdated;
             _server?.Stop();
             base.Dispose();
         }
@@ -201,11 +205,61 @@ namespace PlayniteBridge
             _syncEngine = new SyncEngine(PlayniteApi, _syncClient, _syncState,
                 _serializer, _resolver, () => GetPluginUserDataPath());
 
-            // If already registered and enabled, start sync timer
+            // Auto-enable sync if registered
+            if (_syncState.IsRegistered && !_settingsViewModel.Settings.SyncEnabled)
+            {
+                _settingsViewModel.Settings.SyncEnabled = true;
+            }
+
             if (_settingsViewModel.Settings.SyncEnabled && _syncState.IsRegistered)
             {
                 StartSyncTimer();
             }
+
+            // Listen for game changes (status, categories, playtime edits)
+            PlayniteApi.Database.Games.ItemUpdated += OnGameUpdated;
+        }
+
+        private readonly HashSet<Guid> _pendingGameChanges = new HashSet<Guid>();
+
+        private void OnGameUpdated(object sender, ItemUpdatedEventArgs<Game> args)
+        {
+            if (!_settingsViewModel.Settings.SyncEnabled || _syncEngine == null || !_syncState.IsRegistered || _syncEngine.IsApplyingPull) return;
+
+            // Collect changed game IDs
+            lock (_pendingGameChanges)
+            {
+                foreach (var change in args.UpdatedItems)
+                    _pendingGameChanges.Add(change.NewData.Id);
+            }
+
+            // Debounce — push changed games 5 seconds after last change
+            _debounceSyncTimer?.Dispose();
+            _debounceSyncTimer = new Timer(_ =>
+            {
+                if (_syncEngine.IsSyncing || _api_has_running_game()) return;
+
+                List<Game> gamesToPush;
+                lock (_pendingGameChanges)
+                {
+                    if (_pendingGameChanges.Count == 0) return;
+                    gamesToPush = _pendingGameChanges
+                        .Select(id => PlayniteApi.Database.Games.Get(id))
+                        .Where(g => g != null && SyncEngine.HasCanonicalKey(g))
+                        .ToList();
+                    _pendingGameChanges.Clear();
+                }
+
+                if (gamesToPush.Count == 0) return;
+
+                try
+                {
+                    foreach (var game in gamesToPush)
+                        _syncEngine.PushSingleGame(game);
+                    Logger.Info($"Change-triggered sync: pushed {gamesToPush.Count} games");
+                }
+                catch (Exception ex) { Logger.Warn($"Change-triggered sync failed: {ex.Message}"); }
+            }, null, TimeSpan.FromSeconds(5), System.Threading.Timeout.InfiniteTimeSpan);
         }
 
         private void StartSyncTimer()
