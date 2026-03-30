@@ -12,7 +12,7 @@ namespace PlayniteBridge.Services
     internal class SyncEngine
     {
         private static readonly ILogger Logger = LogManager.GetLogger();
-        private const int PushBatchSize = 200;
+        private const int PushBatchSize = 50;
 
         private readonly IPlayniteAPI _api;
         private readonly SyncClient _client;
@@ -245,9 +245,11 @@ namespace PlayniteBridge.Services
                     .Select(g => _serializer.SerializeFull(g))
                     .ToList();
 
+                Logger.Info($"Pushing batch {i / PushBatchSize + 1}: {batch.Count} games");
                 var response = _client.Push("games", batch);
                 if (response == null)
                 {
+                    Logger.Warn($"Push batch {i / PushBatchSize + 1} failed — null response");
                     result.Success = false;
                     result.Error = "Push batch failed";
                     break;

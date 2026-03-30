@@ -74,7 +74,10 @@ namespace PlayniteBridge.Services
                 ["items"] = items,
                 ["removals"] = removals ?? new List<object>()
             };
-            var result = Post("/api/sync/push", _json.Serialize(payload));
+            var jsonBody = _json.Serialize(payload);
+            Logger.Info($"Push: {items.Count} items, {jsonBody.Length} bytes to {_baseUrl}");
+            var result = Post("/api/sync/push", jsonBody);
+            if (result == null) Logger.Warn("Push returned null (failed)");
             return result != null ? _json.Deserialize<SyncPushResponse>(result) : null;
         }
 
@@ -192,13 +195,14 @@ namespace PlayniteBridge.Services
                 try { return action(); }
                 catch (HttpRequestException ex)
                 {
-                    Logger.Warn($"Sync HTTP error (attempt {i + 1}/{maxRetries}): {ex.Message}");
+                    var inner = ex.InnerException?.Message ?? "";
+                    Logger.Warn($"Sync HTTP error (attempt {i + 1}/{maxRetries}): {ex.Message} | {inner}");
                     if (i == maxRetries - 1) return null;
-                    Thread.Sleep(1000 * (1 << i)); // 1s, 2s, 4s
+                    Thread.Sleep(1000 * (1 << i));
                 }
                 catch (Exception ex)
                 {
-                    Logger.Warn($"Sync error: {ex.Message}");
+                    Logger.Warn($"Sync error [{ex.GetType().Name}]: {ex.Message}");
                     return null;
                 }
             }
