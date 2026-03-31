@@ -1,10 +1,12 @@
 pub mod auth;
 pub mod clients;
 pub mod games;
+pub mod images;
 pub mod sync;
 pub mod dashboard;
 
 use axum::{Router, middleware};
+use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 use crate::db::Db;
@@ -16,6 +18,7 @@ pub struct AppState {
     pub admin_key: String,
     pub registration_code: String,
     pub network: NetworkInfo,
+    pub data_dir: PathBuf,
 }
 
 pub fn router(state: AppState, static_dir: Option<&str>) -> Router {
@@ -23,6 +26,7 @@ pub fn router(state: AppState, static_dir: Option<&str>) -> Router {
     let protected = Router::new()
         .merge(clients::routes())
         .merge(sync::routes())
+        .merge(images::routes())
         .layer(middleware::from_fn_with_state(state.clone(), auth::require_auth))
         .with_state(state.clone());
 
@@ -32,6 +36,7 @@ pub fn router(state: AppState, static_dir: Option<&str>) -> Router {
         .merge(dashboard::routes())
         .merge(sync::public_routes())
         .merge(clients::public_routes())
+        .merge(images::public_routes())
         .with_state(state.clone());
 
     let mut app = Router::new()

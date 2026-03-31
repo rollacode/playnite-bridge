@@ -105,13 +105,14 @@ async fn push(
     let db = state.db.clone();
     let auth_owned = auth.to_string();
 
+    let data_dir = state.data_dir.clone();
     let result = tokio::task::spawn_blocking(move || {
         let client_id = client_id_from_token(&db, &auth_owned)
             .ok_or_else(|| AppError::Unauthorized)?;
         db::clients::update_last_seen(&db, &client_id, None)?;
 
         match req.entity_type.as_str() {
-            "games" => push_games(&db, &client_id, &req),
+            "games" => push_games(&db, &client_id, &req, &data_dir),
             other => Err(AppError::BadRequest(format!("Unknown entity_type: {other}"))),
         }
     }).await.map_err(|e| AppError::Internal(e.to_string()))??;
@@ -119,14 +120,20 @@ async fn push(
     Ok(Json(result))
 }
 
-fn push_games(db: &db::Db, client_id: &str, req: &SyncPushRequest) -> AppResult<SyncPushResponse> {
+fn push_games(db: &db::Db, client_id: &str, req: &SyncPushRequest, data_dir: &std::path::Path) -> AppResult<SyncPushResponse> {
     let mut accepted = 0;
     let mut skipped = 0;
     let mut conflicts = 0;
+    let mut image_hashes = std::collections::HashSet::new();
 
     for item in &req.items {
         match serde_json::from_value::<Game>(item.clone()) {
             Ok(game) => {
+                // Collect image hashes from pushed games
+                if let Some(ref h) = game.cover_hash { image_hashes.insert(h.clone()); }
+                if let Some(ref h) = game.icon_hash { image_hashes.insert(h.clone()); }
+                if let Some(ref h) = game.background_hash { image_hashes.insert(h.clone()); }
+
                 match db::games::upsert(db, &game, client_id)? {
                     Some(canonical_id) => {
                         upsert_client_game(db, client_id, &canonical_id, &game)?;
@@ -157,6 +164,11 @@ fn push_games(db: &db::Db, client_id: &str, req: &SyncPushRequest) -> AppResult<
         db::games::apply_removals(db, &req.removals, client_id)?;
     }
 
+    // Find which image hashes the backend doesn't have on disk
+    let missing_images: Vec<String> = image_hashes.into_iter()
+        .filter(|h| !db::images::exists(data_dir, h))
+        .collect();
+
     let now = chrono::Utc::now().to_rfc3339();
     {
         let conn = db.lock().unwrap();
@@ -180,7 +192,7 @@ fn push_games(db: &db::Db, client_id: &str, req: &SyncPushRequest) -> AppResult<
         )?;
     }
 
-    Ok(SyncPushResponse { accepted, skipped, conflicts, new_cursor: now })
+    Ok(SyncPushResponse { accepted, skipped, conflicts, new_cursor: now, missing_images })
 }
 
 fn upsert_client_game(db: &db::Db, client_id: &str, canonical_id: &str, game: &Game) -> AppResult<()> {

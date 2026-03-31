@@ -40,8 +40,9 @@ pub fn upsert(db: &Db, game: &Game, client_id: &str) -> AppResult<Option<String>
         "INSERT INTO games (id, name, sorting_name, description, notes, game_id, source,
             release_date, community_score, critic_score, user_score, favorite, hidden,
             completion_status, version, playtime, play_count, last_activity,
-            canonical_key, client_modified, updated_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20, datetime('now'))
+            canonical_key, client_modified, updated_at,
+            cover_hash, icon_hash, background_hash)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20, datetime('now'),?21,?22,?23)
          ON CONFLICT(id) DO UPDATE SET
             name = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN excluded.name ELSE games.name END,
             sorting_name = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN excluded.sorting_name ELSE games.sorting_name END,
@@ -62,6 +63,9 @@ pub fn upsert(db: &Db, game: &Game, client_id: &str) -> AppResult<Option<String>
             last_activity = CASE WHEN COALESCE(excluded.last_activity,'') > COALESCE(games.last_activity,'') THEN excluded.last_activity ELSE games.last_activity END,
             canonical_key = COALESCE(excluded.canonical_key, games.canonical_key),
             client_modified = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN excluded.client_modified ELSE games.client_modified END,
+            cover_hash = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN COALESCE(excluded.cover_hash, games.cover_hash) ELSE games.cover_hash END,
+            icon_hash = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN COALESCE(excluded.icon_hash, games.icon_hash) ELSE games.icon_hash END,
+            background_hash = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN COALESCE(excluded.background_hash, games.background_hash) ELSE games.background_hash END,
             updated_at = datetime('now')",
         rusqlite::params![
             target_id, game.name, game.sorting_name, game.description, game.notes,
@@ -71,6 +75,7 @@ pub fn upsert(db: &Db, game: &Game, client_id: &str) -> AppResult<Option<String>
             game.completion_status, game.version,
             game.playtime, game.play_count, game.last_activity,
             canon, game.updated_at, // client_modified comes from game.updated_at (which is Game.Modified)
+            game.cover_hash, game.icon_hash, game.background_hash,
         ],
     )?;
 
@@ -166,7 +171,8 @@ pub fn find_by_id(db: &Db, id: &str) -> AppResult<Option<Game>> {
         "SELECT id, name, sorting_name, description, notes, game_id, source,
                 release_date, community_score, critic_score, user_score,
                 favorite, hidden, completion_status, version,
-                playtime, play_count, last_activity, created_at, updated_at
+                playtime, play_count, last_activity, created_at, updated_at,
+                cover_hash, icon_hash, background_hash
          FROM games WHERE id = ?1"
     )?;
 
@@ -239,7 +245,8 @@ pub fn list(db: &Db, query: &GamesQuery) -> AppResult<PaginatedGames> {
         "SELECT g.id, g.name, g.sorting_name, g.description, g.notes, g.game_id, g.source,
                 g.release_date, g.community_score, g.critic_score, g.user_score,
                 g.favorite, g.hidden, g.completion_status, g.version,
-                g.playtime, g.play_count, g.last_activity, g.created_at, g.updated_at
+                g.playtime, g.play_count, g.last_activity, g.created_at, g.updated_at,
+                g.cover_hash, g.icon_hash, g.background_hash
          FROM games g {where_sql} ORDER BY {sort_col} {sort_dir} LIMIT ?{param_idx} OFFSET ?{}",
         param_idx + 1
     );
@@ -279,6 +286,22 @@ pub fn sources_count(db: &Db) -> AppResult<Vec<SourceCount>> {
     Ok(results)
 }
 
+/// Collect all distinct non-null image hashes currently referenced by games.
+pub fn all_image_hashes(db: &Db) -> AppResult<std::collections::HashSet<String>> {
+    let conn = db.lock().unwrap();
+    let mut set = std::collections::HashSet::new();
+    let mut stmt = conn.prepare(
+        "SELECT cover_hash FROM games WHERE cover_hash IS NOT NULL
+         UNION SELECT icon_hash FROM games WHERE icon_hash IS NOT NULL
+         UNION SELECT background_hash FROM games WHERE background_hash IS NOT NULL"
+    )?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    for row in rows {
+        set.insert(row?);
+    }
+    Ok(set)
+}
+
 pub fn unsyncable_count(db: &Db) -> AppResult<i64> {
     let conn = db.lock().unwrap();
     Ok(conn.query_row("SELECT COUNT(*) FROM games WHERE canonical_key IS NULL", [], |row| row.get(0))?)
@@ -291,7 +314,8 @@ pub fn changed_since(db: &Db, since: &str, limit: i64) -> AppResult<(Vec<Game>, 
         "SELECT id, name, sorting_name, description, notes, game_id, source,
                 release_date, community_score, critic_score, user_score,
                 favorite, hidden, completion_status, version,
-                playtime, play_count, last_activity, created_at, updated_at
+                playtime, play_count, last_activity, created_at, updated_at,
+                cover_hash, icon_hash, background_hash
          FROM games WHERE updated_at > ?1 ORDER BY updated_at ASC LIMIT ?2"
     )?;
 
@@ -323,6 +347,7 @@ fn game_from_row(row: &rusqlite::Row) -> rusqlite::Result<Game> {
         genres: Vec::new(), categories: Vec::new(), tags: Vec::new(),
         features: Vec::new(), developers: Vec::new(), publishers: Vec::new(),
         platforms: Vec::new(), series: Vec::new(), links: Vec::new(),
+        cover_hash: row.get(20)?, icon_hash: row.get(21)?, background_hash: row.get(22)?,
         is_installed: None, created_at: row.get(18)?, updated_at: row.get(19)?,
     })
 }

@@ -25,6 +25,7 @@ namespace PlayniteBridge.Services
         internal volatile bool IsApplyingPull;
 
         public bool IsSyncing => _isSyncing;
+        public bool SyncImages { get; set; } = true;
         public string LastError => _state?.LastSyncError;
         public string LastSyncTime => _state?.LastSyncTime;
 
@@ -87,9 +88,17 @@ namespace PlayniteBridge.Services
 
             try
             {
-                var serialized = _serializer.SerializeFull(game);
-                var response = _client.Push("games", new List<object> { serialized });
+                var serialized = _serializer.SerializeForSync(game, _api.Database);
+                var batch = new List<object> { serialized };
+                var response = _client.Push("games", batch);
                 if (response == null) return Fail("Push failed");
+
+                // Upload missing images
+                if (SyncImages && response.missingImages != null && response.missingImages.Count > 0)
+                {
+                    UploadMissingImages(response.missingImages, batch);
+                }
+
                 return new SyncResult { Success = true, GamesPushed = response.accepted, GamesSkipped = response.skipped };
             }
             catch (Exception ex)
@@ -243,7 +252,7 @@ namespace PlayniteBridge.Services
             for (int i = 0; i < games.Count; i += PushBatchSize)
             {
                 var batch = games.Skip(i).Take(PushBatchSize)
-                    .Select(g => _serializer.SerializeFull(g))
+                    .Select(g => _serializer.SerializeForSync(g, _api.Database))
                     .ToList();
 
                 Logger.Info($"Pushing batch {i / PushBatchSize + 1}: {batch.Count} games");
@@ -258,6 +267,12 @@ namespace PlayniteBridge.Services
 
                 result.GamesPushed += response.accepted;
                 result.GamesSkipped += response.skipped;
+
+                // Upload missing images
+                if (SyncImages && response.missingImages != null && response.missingImages.Count > 0)
+                {
+                    UploadMissingImages(response.missingImages, batch);
+                }
 
                 _state.LastPushCursor = response.newCursor;
                 _state.Save();
@@ -288,6 +303,17 @@ namespace PlayniteBridge.Services
                     result.GamesUpdated += applied.Item1;
                     result.GamesCreated += applied.Item2;
                     result.GamesPulled += response.items.Count;
+
+                    // Download missing images in background
+                    if (SyncImages)
+                    {
+                        var items_copy = response.items;
+                        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                        {
+                            try { DownloadMissingImages(items_copy); }
+                            catch (Exception ex) { Logger.Warn($"Image download failed: {ex.Message}"); }
+                        });
+                    }
                 }
 
                 since = response.cursor;
@@ -339,6 +365,108 @@ namespace PlayniteBridge.Services
             IsApplyingPull = false;
 
             return Tuple.Create(updated, created);
+        }
+
+        /// <summary>Upload images that the backend is missing.</summary>
+        private void UploadMissingImages(List<string> missingHashes, List<object> pushedGames)
+        {
+            // Build hash → game mapping to find which local files to upload
+            var hashToDbPath = new Dictionary<string, string>();
+            foreach (var game in _api.Database.Games)
+            {
+                var coverHash = GameSerializationService.ComputeFileHash(_api.Database, game.CoverImage);
+                if (coverHash != null && missingHashes.Contains(coverHash))
+                    hashToDbPath[coverHash] = game.CoverImage;
+
+                var iconHash = GameSerializationService.ComputeFileHash(_api.Database, game.Icon);
+                if (iconHash != null && missingHashes.Contains(iconHash))
+                    hashToDbPath[iconHash] = game.Icon;
+
+                var bgHash = GameSerializationService.ComputeFileHash(_api.Database, game.BackgroundImage);
+                if (bgHash != null && missingHashes.Contains(bgHash))
+                    hashToDbPath[bgHash] = game.BackgroundImage;
+
+                if (hashToDbPath.Count >= missingHashes.Count) break;
+            }
+
+            var uploaded = 0;
+            foreach (var hash in missingHashes)
+            {
+                string dbPath;
+                if (!hashToDbPath.TryGetValue(hash, out dbPath)) continue;
+
+                var bytes = GameSerializationService.ReadImageFile(_api.Database, dbPath);
+                if (bytes == null) continue;
+
+                if (_client.UploadImage(hash, bytes))
+                    uploaded++;
+            }
+
+            if (uploaded > 0)
+                Logger.Info($"Uploaded {uploaded} images to backend");
+        }
+
+        /// <summary>Download missing images from backend for pulled games.</summary>
+        private void DownloadMissingImages(List<Dictionary<string, object>> items)
+        {
+            foreach (var data in items)
+            {
+                var gameId = GetString(data, "gameId");
+                var source = GetString(data, "source");
+                if (string.IsNullOrEmpty(gameId)) continue;
+
+                var local = FindLocalGame(data);
+                if (local == null) continue;
+
+                TryDownloadImage(data, "coverHash", local, g => g.CoverImage, (g, path) => g.CoverImage = path);
+                TryDownloadImage(data, "iconHash", local, g => g.Icon, (g, path) => g.Icon = path);
+                TryDownloadImage(data, "backgroundHash", local, g => g.BackgroundImage, (g, path) => g.BackgroundImage = path);
+            }
+        }
+
+        private void TryDownloadImage(Dictionary<string, object> data, string hashField,
+            Game game, Func<Game, string> getField, Action<Game, string> setField)
+        {
+            var serverHash = GetString(data, hashField);
+            if (string.IsNullOrEmpty(serverHash)) return;
+
+            var localHash = GameSerializationService.ComputeFileHash(_api.Database, getField(game));
+            if (localHash == serverHash) return; // already have it
+
+            var bytes = _client.DownloadImage(serverHash);
+            if (bytes == null || bytes.Length == 0) return;
+
+            try
+            {
+                var ext = DetectImageExtension(bytes);
+                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"sync_{serverHash}.{ext}");
+                System.IO.File.WriteAllBytes(tempPath, bytes);
+
+                _api.MainView.UIDispatcher.Invoke(() =>
+                {
+                    var dbPath = _api.Database.AddFile(tempPath, game.Id);
+                    if (!string.IsNullOrEmpty(dbPath))
+                    {
+                        setField(game, dbPath);
+                        _api.Database.Games.Update(game);
+                    }
+                });
+
+                System.IO.File.Delete(tempPath);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Failed to download image {serverHash}: {ex.Message}");
+            }
+        }
+
+        private static string DetectImageExtension(byte[] bytes)
+        {
+            if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8) return "jpg";
+            if (bytes.Length >= 4 && bytes[0] == 0x89 && bytes[1] == 0x50) return "png";
+            if (bytes.Length >= 4 && bytes[0] == 0x47 && bytes[1] == 0x49) return "gif";
+            if (bytes.Length >= 4 && bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0x01) return "ico";
+            return "bin";
         }
 
         private Game FindLocalGame(Dictionary<string, object> data)
@@ -450,6 +578,64 @@ namespace PlayniteBridge.Services
                 {
                     if (!game.GenreIds.Contains(gid)) { game.GenreIds.Add(gid); changed = true; }
                 }
+            }
+
+            // Description (fill empty only — don't overwrite user edits)
+            var desc = GetString(data, "description");
+            if (!string.IsNullOrEmpty(desc) && string.IsNullOrEmpty(game.Description))
+            {
+                game.Description = desc;
+                changed = true;
+            }
+
+            // Developers (UNION)
+            var developers = GetStringList(data, "developers");
+            if (developers.Count > 0)
+            {
+                var devIds = _resolver.ResolveIds(_api.Database.Companies, developers);
+                if (game.DeveloperIds == null) game.DeveloperIds = new List<Guid>();
+                foreach (var did in devIds)
+                    if (!game.DeveloperIds.Contains(did)) { game.DeveloperIds.Add(did); changed = true; }
+            }
+
+            // Publishers (UNION)
+            var publishers = GetStringList(data, "publishers");
+            if (publishers.Count > 0)
+            {
+                var pubIds = _resolver.ResolveIds(_api.Database.Companies, publishers);
+                if (game.PublisherIds == null) game.PublisherIds = new List<Guid>();
+                foreach (var pid in pubIds)
+                    if (!game.PublisherIds.Contains(pid)) { game.PublisherIds.Add(pid); changed = true; }
+            }
+
+            // Features (UNION)
+            var features = GetStringList(data, "features");
+            if (features.Count > 0)
+            {
+                var featIds = _resolver.ResolveIds(_api.Database.Features, features);
+                if (game.FeatureIds == null) game.FeatureIds = new List<Guid>();
+                foreach (var fid in featIds)
+                    if (!game.FeatureIds.Contains(fid)) { game.FeatureIds.Add(fid); changed = true; }
+            }
+
+            // Platforms (UNION)
+            var platforms = GetStringList(data, "platforms");
+            if (platforms.Count > 0)
+            {
+                var platIds = _resolver.ResolveIds(_api.Database.Platforms, platforms);
+                if (game.PlatformIds == null) game.PlatformIds = new List<Guid>();
+                foreach (var pid in platIds)
+                    if (!game.PlatformIds.Contains(pid)) { game.PlatformIds.Add(pid); changed = true; }
+            }
+
+            // Series (UNION)
+            var series = GetStringList(data, "series");
+            if (series.Count > 0)
+            {
+                var seriesIds = _resolver.ResolveIds(_api.Database.Series, series);
+                if (game.SeriesIds == null) game.SeriesIds = new List<Guid>();
+                foreach (var sid in seriesIds)
+                    if (!game.SeriesIds.Contains(sid)) { game.SeriesIds.Add(sid); changed = true; }
             }
 
             // Favorite / Hidden

@@ -129,6 +129,13 @@ pub struct Game {
     pub series: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty", deserialize_with = "deserialize_null_default")]
     pub links: Vec<GameLink>,
+    // Image hashes (content-addressed)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_hash: Option<String>,
     // Per-client (only set in context)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_installed: Option<bool>,
@@ -171,6 +178,8 @@ pub struct SyncPushResponse {
     pub skipped: usize,
     pub conflicts: usize,
     pub new_cursor: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub missing_images: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

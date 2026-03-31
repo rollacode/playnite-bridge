@@ -61,6 +61,15 @@ namespace PlayniteBridge.Services
         public bool openRegistration { get; set; }
     }
 
+    internal class SyncPushResponseFull
+    {
+        public int accepted { get; set; }
+        public int skipped { get; set; }
+        public int conflicts { get; set; }
+        public string newCursor { get; set; }
+        public List<string> missingImages { get; set; }
+    }
+
     internal class SyncResult
     {
         public bool Success { get; set; }

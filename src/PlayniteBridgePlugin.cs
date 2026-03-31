@@ -203,7 +203,10 @@ namespace PlayniteBridge
                 : _settingsViewModel.Settings.SyncBackendUrl;
             _syncClient = new SyncClient(backendUrl, _syncState.ApiKey ?? "");
             _syncEngine = new SyncEngine(PlayniteApi, _syncClient, _syncState,
-                _serializer, _resolver, () => GetPluginUserDataPath());
+                _serializer, _resolver, () => GetPluginUserDataPath())
+            {
+                SyncImages = _settingsViewModel.Settings.SyncImages
+            };
 
             // Auto-enable sync if registered
             if (_syncState.IsRegistered && !_settingsViewModel.Settings.SyncEnabled)
@@ -224,7 +227,7 @@ namespace PlayniteBridge
 
         private void OnGameUpdated(object sender, ItemUpdatedEventArgs<Game> args)
         {
-            if (!_settingsViewModel.Settings.SyncEnabled || _syncEngine == null || !_syncState.IsRegistered || _syncEngine.IsApplyingPull) return;
+            if (!_settingsViewModel.Settings.SyncEnabled || !_settingsViewModel.Settings.SyncOnChange || _syncEngine == null || !_syncState.IsRegistered || _syncEngine.IsApplyingPull) return;
 
             // Collect changed game IDs
             lock (_pendingGameChanges)
@@ -265,8 +268,13 @@ namespace PlayniteBridge
         private void StartSyncTimer()
         {
             _syncTimer?.Dispose();
-            var interval = TimeSpan.FromMinutes(
-                Math.Max(1, _settingsViewModel.Settings.SyncIntervalMinutes));
+            var minutes = _settingsViewModel.Settings.SyncIntervalMinutes;
+            if (minutes <= 0)
+            {
+                Logger.Info("Periodic sync disabled (interval=0)");
+                return;
+            }
+            var interval = TimeSpan.FromMinutes(Math.Max(1, minutes));
             _syncTimer = new Timer(SyncTimerCallback, null, TimeSpan.FromSeconds(10), interval);
             Logger.Info($"Sync timer started (interval: {interval.TotalMinutes}m)");
         }

@@ -68,12 +68,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("Tailscale not detected — sync limited to local network");
     }
 
+    // Data directory (next to the database file) for images etc.
+    let data_dir = cfg.db_path().parent().unwrap_or(std::path::Path::new(".")).to_path_buf();
+    let images_dir = data_dir.join("images");
+    std::fs::create_dir_all(&images_dir).expect("Failed to create images directory");
+    tracing::info!("Images directory: {}", images_dir.display());
+
     // Build API
     let state = api::AppState {
         db: database,
         admin_key,
         registration_code,
         network,
+        data_dir,
     };
 
     // Determine static files directory

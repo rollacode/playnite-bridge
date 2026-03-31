@@ -9,6 +9,8 @@ namespace PlayniteBridge.Settings
         private bool _syncEnabled;
         private string _syncBackendUrl = "";
         private int _syncIntervalMinutes = 5;
+        private bool _syncOnChange = true;
+        private bool _syncImages = true;
         private bool _networkPromptDismissed;
 
         public bool NetworkPromptDismissed
@@ -33,6 +35,18 @@ namespace PlayniteBridge.Settings
         {
             get => _syncIntervalMinutes;
             set => SetValue(ref _syncIntervalMinutes, value);
+        }
+
+        public bool SyncOnChange
+        {
+            get => _syncOnChange;
+            set => SetValue(ref _syncOnChange, value);
+        }
+
+        public bool SyncImages
+        {
+            get => _syncImages;
+            set => SetValue(ref _syncImages, value);
         }
     }
 

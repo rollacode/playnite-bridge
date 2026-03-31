@@ -222,6 +222,35 @@
                                   IsChecked="{Binding Settings.SyncEnabled, Mode=TwoWay}"
                                   Margin="0,4,0,0"
                                   Foreground="{DynamicResource TextBrush}"/>
+
+                        <CheckBox Content="Sync on game changes (status, categories, tags)"
+                                  IsChecked="{Binding Settings.SyncOnChange, Mode=TwoWay}"
+                                  Margin="0,4,0,0"
+                                  Foreground="{DynamicResource TextBrush}"/>
+
+                        <CheckBox Content="Sync artwork (covers, icons, backgrounds)"
+                                  IsChecked="{Binding Settings.SyncImages, Mode=TwoWay}"
+                                  Margin="0,4,0,0"
+                                  Foreground="{DynamicResource TextBrush}"/>
+
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Sync interval:"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                            <ComboBox Grid.Column="1"
+                                      SelectedValue="{Binding Settings.SyncIntervalMinutes, Mode=TwoWay}"
+                                      SelectedValuePath="Tag">
+                                <ComboBoxItem Content="1 minute" Tag="1"/>
+                                <ComboBoxItem Content="5 minutes" Tag="5"/>
+                                <ComboBoxItem Content="15 minutes" Tag="15"/>
+                                <ComboBoxItem Content="30 minutes" Tag="30"/>
+                                <ComboBoxItem Content="Off" Tag="0"/>
+                            </ComboBox>
+                        </Grid>
                     </StackPanel>
                 </StackPanel>
             </Border>

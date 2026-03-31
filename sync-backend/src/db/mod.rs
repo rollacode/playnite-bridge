@@ -1,6 +1,7 @@
 pub mod migrations;
 pub mod clients;
 pub mod games;
+pub mod images;
 
 use rusqlite::Connection;
 use std::path::Path;

@@ -66,7 +66,7 @@ namespace PlayniteBridge.Services
             return result != null ? _json.Deserialize<SyncClientStatus>(result) : null;
         }
 
-        public SyncPushResponse Push(string entityType, List<object> items, List<object> removals = null)
+        public SyncPushResponseFull Push(string entityType, List<object> items, List<object> removals = null)
         {
             var payload = new Dictionary<string, object>
             {
@@ -75,13 +75,11 @@ namespace PlayniteBridge.Services
                 ["removals"] = removals ?? new List<object>()
             };
             var jsonBody = _json.Serialize(payload);
-            Logger.Info($"Push: {items.Count} items, {jsonBody.Length} bytes to {_baseUrl} (key={_apiKey.Substring(0, Math.Min(12, _apiKey.Length))}...)");
+            Logger.Info($"Push: {items.Count} items, {jsonBody.Length} bytes to {_baseUrl}");
             var result = Post("/api/sync/push", jsonBody);
             if (result == null)
                 Logger.Warn("Push returned null (failed)");
-            else
-                Logger.Info($"Push response: {result.Substring(0, Math.Min(100, result.Length))}");
-            return result != null ? _json.Deserialize<SyncPushResponse>(result) : null;
+            return result != null ? _json.Deserialize<SyncPushResponseFull>(result) : null;
         }
 
         public SyncPullResponse Pull(string entityType, string sinceCursor, int limit = 500)
@@ -127,6 +125,32 @@ namespace PlayniteBridge.Services
                 var response = Http.SendAsync(request).GetAwaiter().GetResult();
                 return response.IsSuccessStatusCode ? "ok" : null;
             }) != null;
+        }
+
+        /// <summary>Upload image by hash.</summary>
+        public bool UploadImage(string hash, byte[] data)
+        {
+            return WithRetry(() =>
+            {
+                var request = new HttpRequestMessage(HttpMethod.Put, $"{_baseUrl}/api/images/{hash}");
+                request.Headers.Add("Authorization", $"Bearer {_apiKey}");
+                request.Content = new ByteArrayContent(data);
+                request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+                var response = Http.SendAsync(request).GetAwaiter().GetResult();
+                return response.IsSuccessStatusCode ? "ok" : null;
+            }) != null;
+        }
+
+        /// <summary>Download image by hash.</summary>
+        public byte[] DownloadImage(string hash)
+        {
+            try
+            {
+                var response = Http.GetAsync($"{_baseUrl}/api/images/{hash}").GetAwaiter().GetResult();
+                if (!response.IsSuccessStatusCode) return null;
+                return response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            }
+            catch { return null; }
         }
 
         public SyncNetworkInfo GetNetworkInfo()

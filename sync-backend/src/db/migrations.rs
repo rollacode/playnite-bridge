@@ -3,6 +3,7 @@ use super::Db;
 const MIGRATION_001: &str = include_str!("../../migrations/001_initial.sql");
 const MIGRATION_002: &str = include_str!("../../migrations/002_sync_v2.sql");
 const MIGRATION_003: &str = include_str!("../../migrations/003_client_status.sql");
+const MIGRATION_004: &str = include_str!("../../migrations/004_image_hashes.sql");
 
 pub fn run(db: &Db) -> Result<(), rusqlite::Error> {
     let conn = db.lock().unwrap();
@@ -19,6 +20,7 @@ pub fn run(db: &Db) -> Result<(), rusqlite::Error> {
         (1, "001_initial", MIGRATION_001),
         (2, "002_sync_v2", MIGRATION_002),
         (3, "003_client_status", MIGRATION_003),
+        (4, "004_image_hashes", MIGRATION_004),
     ];
 
     for (id, name, sql) in migrations {
