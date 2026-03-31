@@ -260,14 +260,32 @@
                     Padding="16,10,0,10" Margin="0,0,0,20">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Xbox Button (FSE)"/>
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
                                Foreground="{DynamicResource TextBrushDarker}" FontSize="{DynamicResource FontSizeSmall}">
                         Replace the Xbox Full Screen Experience with Playnite.
-                        When you press the Xbox / Legion / ROG button on your handheld
-                        (ROG Ally, Legion Go, etc.), Playnite opens in fullscreen mode
-                        instead of the Xbox dashboard. Windows 11 only.
-                        After install, go to Settings &gt; Gaming &gt; Full Screen Experience
-                        and select Playnite.
+                        Press the Xbox / Legion / ROG button on your handheld
+                        (ROG Ally, Legion Go, etc.) and Playnite opens in fullscreen.
+                        Windows 11 only.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
+                               Foreground="{DynamicResource TextBrushDarker}" FontSize="{DynamicResource FontSizeSmall}" FontWeight="SemiBold">
+                        Before installing:
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
+                               Foreground="{DynamicResource TextBrushDarker}" FontSize="{DynamicResource FontSizeSmall}">
+                        1. Enable Developer Mode: Settings &gt; System &gt; For developers &gt; Developer Mode ON
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
+                               Foreground="{DynamicResource TextBrushDarker}" FontSize="{DynamicResource FontSizeSmall}">
+                        2. Click Install below
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4"
+                               Foreground="{DynamicResource TextBrushDarker}" FontSize="{DynamicResource FontSizeSmall}">
+                        3. Go to Settings &gt; Gaming &gt; Full Screen Experience and select Playnite
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
+                               Foreground="{DynamicResource TextBrushDarker}" FontSize="{DynamicResource FontSizeSmall}">
+                        4. You can disable Developer Mode after — it's only needed for install
                     </TextBlock>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                         <Button x:Name="BtnInstallFSE" Content="Install"

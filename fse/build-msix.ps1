@@ -21,6 +21,7 @@ New-Item "$PackageDir\Public" -ItemType Directory | Out-Null
 Copy-Item "$FSEDir\AppxManifest.xml" "$PackageDir\"
 Copy-Item "$FSEDir\Assets\*" "$PackageDir\Assets\"
 Copy-Item "$FSEDir\PlayniteLauncher\bin\Release\net48\PlayniteLauncher.exe" "$PackageDir\"
+Copy-Item "$FSEDir\CustomCapability.SCCD" "$PackageDir\" -ErrorAction SilentlyContinue
 
 # Create cert if not exists
 if (-not (Test-Path $PfxPath)) {
