@@ -1,113 +1,135 @@
 # Playnite Bridge
 
-A [Playnite](https://playnite.link/) plugin that exposes your entire game library through an HTTP API with token auth. Designed for AI integration — copy the skill file into any AI chat to give it full control over your library.
+A [Playnite](https://playnite.link/) plugin that exposes your entire game library through an HTTP API with token auth. Includes a **sync server** to keep libraries in sync across multiple PCs.
 
 ## Features
 
-- **Full HTTP API** on `localhost:19821` — 50+ endpoints covering the entire Playnite SDK
-- **AI Skill file** — paste [`skill.md`](skill.md) into any AI chat (ChatGPT, Claude, Gemini) and it can manage your library
+### HTTP API
+- **50+ endpoints** on `localhost:19821` covering the entire Playnite SDK
+- **AI Skill file** — paste into any AI chat (ChatGPT, Claude, Gemini) for full library control
 - **Bearer token auth** with rotation
-- **Game management** — search, create, update any field, delete, launch, install, uninstall
-- **Library metadata** — categories, tags, features, genres, platforms, companies, series, and more
+- **Game management** — search, create, update, delete, launch, install/uninstall
+- **Library metadata** — categories, tags, genres, features, platforms, series, and more
+- **Advanced query** — filters, sorting, groupBy analytics
 - **View control** — select games, apply filters, get UI state
 - **Auto-categorization** by genre
 - **Artwork fetching** from Steam CDN and IGDB
-- **Library statistics** — counts, playtime, top genres, recently played
-- **Notifications** — send messages to Playnite UI
+- **Code execution** — run arbitrary C# inside Playnite via `/api/eval`
+- **Plugin integration** — SuccessStory achievements, GameActivity sessions
+
+### Game Library Sync
+- **Sync across PCs** — playtime, categories, tags, genres, completion status, favorites
+- **Artwork sync** — covers, icons, backgrounds via content-addressed storage (SHA-256)
+- **Text metadata** — descriptions, developers, publishers, features, platforms, series
+- **Reactive sync** — changes push within 5 seconds of editing a game
+- **Tailscale auto-discovery** — finds sync backend across networks automatically
+- **Connection approval** — PSR registration code or dashboard approve button
+- **Conflict resolution** — MAX playtime, UNION collections, last-writer-wins for metadata
+- **Canonical key dedup** — same game from different PCs merges by store ID (e.g. `steam:292030`)
+- **Web dashboard** — monitor clients, browse library, manage connections
+- **Windows tray app** — sync backend runs silently in system tray
 
 ## Installation
 
-1. Download the latest release from [Releases](../../releases)
-2. Drag the `.pext` file onto Playnite, or extract to:
-   ```
-   %AppData%\Playnite\Extensions\PlayniteBridge_f47ac10b\
-   ```
-   The folder should contain `PlayniteBridge.dll` and `extension.yaml`.
-3. Restart Playnite. The API starts automatically on port **19821**.
+### Plugin
+1. Download `PlayniteBridge_vX.X.X.pext` from [Releases](../../releases)
+2. Drag onto Playnite to install
+3. Restart Playnite — API starts on port **19821**
+
+### Sync Backend (optional)
+1. Download `playnite-sync-vX.X.X-windows-x64.zip` from [Releases](../../releases)
+2. Extract anywhere, run `playnite-sync.exe`
+3. A tray icon appears — right-click for dashboard
+4. Note the **PSR registration code** in dashboard Settings
+
+### Connecting
+1. In Playnite: **Settings > Plugins > Playnite Bridge > Sync**
+2. Click **Scan for Backends** — finds the server on Tailscale or LAN
+3. Click **Connect**, then enter PSR code or approve from dashboard
+4. Sync starts automatically
+
+## Sync Settings
+
+Per-client settings in the plugin:
+- **Sync interval** — 1 / 5 / 15 / 30 minutes / Off
+- **Sync on game changes** — reactive sync when you edit status, categories, tags
+- **Sync artwork** — covers, icons, backgrounds
+
+### What Syncs
+
+| Data | Strategy |
+|------|----------|
+| Playtime | MAX across machines |
+| Categories, tags, genres, features | Merged from all |
+| Completion status, favorite, hidden | Last edit wins |
+| Description, developers, publishers | Fills empty fields |
+| Covers, icons, backgrounds | Content-addressed (SHA-256 hash diff) |
+| Custom statuses (e.g. "Don't Care") | Auto-created if missing |
+| Installation status | Per-machine (not synced) |
+
+Games are matched by store ID (e.g. Steam AppID). Games without a source are not synced.
 
 ## AI Integration
 
 ### Quick Start
-
-1. In Playnite: **Main Menu > Playnite Bridge > Copy AI Skill to Clipboard**
-2. Paste into any AI chat (ChatGPT, Claude, Gemini, etc.)
-3. Done — the AI can now manage your game library
+1. **Main Menu > Playnite Bridge > Copy AI Skill to Clipboard**
+2. Paste into any AI chat
+3. Done — the AI can manage your library
 
 ### Settings
-
-**Settings → Plugins → Playnite Bridge** — view API status, token, and AI integration config:
-- Copy AI Skill with one click
-- Copy MCP config for Claude Desktop
-- Copy API URL for ChatGPT
-- Manage token and network access
-
-### Claude Code Skill
-
-Copy `skill.md` to your Claude Code skills directory:
-
-```bash
-mkdir -p ~/.claude/skills/playnite-bridge
-cp skill.md ~/.claude/skills/playnite-bridge/SKILL.md
-```
-
-Then use `/playnite-bridge` in any Claude Code session.
-
-### Playnite Menu
-
-The plugin adds these items under **Main Menu > Playnite Bridge**:
-
-- **Copy AI Skill to Clipboard** — copies a skill file with your token embedded
-- **Open AI Skill File** — opens the skill file in your editor
-- **Show API Token** — displays your current token
-- **Regenerate API Token** — rotates the token (old one stops working)
+**Settings > Plugins > Playnite Bridge** — API status, token, AI skill, MCP config for Claude Desktop, ChatGPT URL.
 
 ## API Overview
 
-All endpoints require `Authorization: Bearer <token>` header. Full documentation in [`docs/api.md`](docs/api.md) and [`skill.md`](skill.md).
+All endpoints require `Authorization: Bearer <token>`. Full docs in [`docs/api.md`](docs/api.md) and [`skill.md`](skill.md).
 
 | Category | Endpoints | Examples |
 |----------|-----------|---------|
 | Games | 20 | Search, CRUD, launch, install, categories, tags, cover art |
 | Query | 1 | Advanced filters, sort, groupBy analytics |
 | Collections | 18 | Categories, genres, tags, features, platforms, sources |
-| Plugin Data | 3 | Achievements (SuccessStory), activity (GameActivity), plugins |
+| Plugin Data | 3 | Achievements, activity, plugins |
 | View | 4 | UI state, selection, filters |
 | App | 4 | Version, addons, stats, notifications |
 | Automation | 2 | Auto-categorize, batch artwork fetch |
-| Auth | 2 | Token rotation, API index |
+| Auth | 2 | Token rotation, skill generation |
+| Eval | 1 | Execute C# code inside Playnite |
 
-## IGDB Setup (optional)
+## Sync Backend
 
-For non-Steam artwork fetching via [IGDB](https://www.igdb.com/):
-
-1. Create an app at [Twitch Developer Portal](https://dev.twitch.tv/console/apps)
-2. Create `igdb.json` in the plugin's data directory:
-   ```
-   %AppData%\Playnite\ExtensionsData\f47ac10b-58cc-4372-a567-0e02b2c3d479\igdb.json
-   ```
-   ```json
-   {
-     "client_id": "your_twitch_client_id",
-     "client_secret": "your_twitch_client_secret"
-   }
-   ```
+Lightweight Rust server (~4.5MB binary):
+- **SQLite** database (WAL mode)
+- **Tailscale** auto-detection for cross-network sync
+- **Web dashboard** with infinite scroll library browser
+- **Content-addressed image storage** on disk (~500MB for 600 games)
+- **Launch on Startup** toggle in dashboard settings
+- **Docker-compatible** (`--headless` mode)
 
 ## Building from Source
 
+### Plugin
 ```bash
-git clone --recurse-submodules https://github.com/rollacode/playnite-categorizer.git
-cd playnite-categorizer/src
-dotnet build -c Release
+cd src && dotnet build -c Release
 ```
 
-Output: `src/bin/Release/net462/PlayniteBridge.dll`
+### Sync Backend
+```bash
+cd sync-backend && cargo build --release
+```
+
+### Tests
+```bash
+cd tests && dotnet test          # 174 C# tests
+cd sync-backend && cargo test    # 10 Rust tests
+```
 
 ## Security
 
-- API listens on all interfaces (port 19821) — accessible from the local network, protected by Bearer token
-- Token is auto-generated on first run, stored locally
-- IGDB credentials stay in your local `igdb.json` (gitignored)
-- The skill file contains your token — don't share it publicly. Use "Regenerate API Token" if compromised.
+- Plugin API on port 19821, protected by Bearer token
+- Sync backend on port 19822, client registration requires approval
+- Tailscale provides encrypted transport for cross-network sync
+- Token auto-generated, rotatable, stored locally
+- Images addressed by SHA-256 hash — unguessable URLs
 
 ## License
 
