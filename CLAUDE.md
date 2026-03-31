@@ -54,6 +54,14 @@ cd "C:/tools/playnite-sync" && ./playnite-sync.exe
 - Dashboard: `http://localhost:19822`
 - Tray icon in system tray, right-click → Open Dashboard / Quit
 
+### FSE (Xbox Button) Package
+```bash
+cd fse/PlayniteLauncher && dotnet build -c Release
+cd .. && powershell -ExecutionPolicy Bypass -File build-msix.ps1
+```
+Output: `fse/PlayniteFSE.msix` + `fse/PlayniteFSE.cer`
+Must be copied to `Extensions/PlayniteBridge/FSE/` in release .pext
+
 ### Full Release Process
 1. `cd src && dotnet build -c Release` — plugin
 2. `cd sync-backend && cargo build --release` — backend

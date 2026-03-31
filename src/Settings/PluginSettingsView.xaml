@@ -255,6 +255,31 @@
                 </StackPanel>
             </Border>
 
+            <!-- Xbox / Handheld FSE -->
+            <Border BorderThickness="3,0,0,0" BorderBrush="{DynamicResource GlyphBrush}"
+                    Padding="16,10,0,10" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Xbox Button (FSE)"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
+                               Foreground="{DynamicResource TextBrushDarker}" FontSize="{DynamicResource FontSizeSmall}">
+                        Replace the Xbox Full Screen Experience with Playnite.
+                        When you press the Xbox / Legion / ROG button on your handheld
+                        (ROG Ally, Legion Go, etc.), Playnite opens in fullscreen mode
+                        instead of the Xbox dashboard. Windows 11 only.
+                        After install, go to Settings &gt; Gaming &gt; Full Screen Experience
+                        and select Playnite.
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <Button x:Name="BtnInstallFSE" Content="Install"
+                                Padding="12,5" Click="BtnInstallFSE_Click"/>
+                        <Button x:Name="BtnUninstallFSE" Content="Uninstall"
+                                Padding="12,5" Margin="8,0,0,0" Click="BtnUninstallFSE_Click"/>
+                        <TextBlock x:Name="FSEStatus" VerticalAlignment="Center" Margin="12,0,0,0"
+                                   Foreground="{DynamicResource TextBrushDarker}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- AI Integration -->
             <Border BorderThickness="3,0,0,0" BorderBrush="{DynamicResource HighlightGlyphBrush}"
                     Padding="16,10,0,10" Margin="0,0,0,20">

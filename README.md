@@ -123,6 +123,17 @@ cd tests && dotnet test          # 174 C# tests
 cd sync-backend && cargo test    # 10 Rust tests
 ```
 
+## Xbox Button / Handheld (FSE)
+
+Replace the Xbox Full Screen Experience with Playnite on handhelds (ROG Ally, Legion Go, etc.):
+
+1. In Playnite: **Settings > Plugins > Playnite Bridge > Xbox Button (FSE)**
+2. Click **Install** (requires admin for certificate)
+3. Go to **Windows Settings > Gaming > Full Screen Experience**
+4. Select **Playnite** from the dropdown
+
+Now the Xbox/Legion/ROG button opens Playnite in fullscreen. To remove: click Uninstall in plugin settings, or right-click "Playnite" in Start Menu > Uninstall.
+
 ## Security
 
 - Plugin API on port 19821, protected by Bearer token

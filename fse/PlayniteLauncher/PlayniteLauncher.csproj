@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>PlayniteLauncher</AssemblyName>
+    <RootNamespace>PlayniteLauncher</RootNamespace>
+  </PropertyGroup>
+</Project>

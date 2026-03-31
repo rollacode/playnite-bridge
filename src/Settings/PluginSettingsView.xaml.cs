@@ -68,6 +68,7 @@ namespace PlayniteBridge.Settings
         {
             RefreshStatus();
             RefreshSyncStatus();
+            RefreshFSEStatus();
         }
 
         private void RefreshStatus()
@@ -210,6 +211,106 @@ namespace PlayniteBridge.Settings
             {
                 Logger.Error(ex, "Failed to copy config");
             }
+        }
+
+        // --- FSE ---
+
+        private void BtnInstallFSE_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Find MSIX and cert in plugin directory
+                var pluginDir = System.IO.Path.GetDirectoryName(
+                    typeof(PluginSettingsView).Assembly.Location);
+                var fseDir = System.IO.Path.Combine(pluginDir, "FSE");
+                var msix = System.IO.Path.Combine(fseDir, "PlayniteFSE.msix");
+                var cer = System.IO.Path.Combine(fseDir, "PlayniteFSE.cer");
+
+                if (!System.IO.File.Exists(msix))
+                {
+                    _playniteApi.Dialogs.ShowMessage(
+                        "FSE package not found. Make sure PlayniteFSE.msix is in the plugin's FSE folder.",
+                        "Playnite Bridge");
+                    return;
+                }
+
+                var script = $"Import-Certificate -FilePath '{cer}' -CertStoreLocation 'Cert:\\LocalMachine\\TrustedPeople'; " +
+                             $"Add-AppxPackage -Path '{msix}'; " +
+                             "if ($?) { Write-Host 'SUCCESS' } else { Write-Host 'FAILED' }; " +
+                             "Start-Sleep 2";
+
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    Arguments = $"-Command \"Start-Process powershell -Verb RunAs -ArgumentList '-Command {script.Replace("'", "''")}'\"",
+                    UseShellExecute = true,
+                    CreateNoWindow = true
+                };
+                System.Diagnostics.Process.Start(psi);
+
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+                timer.Tick += (s, ev) =>
+                {
+                    RefreshFSEStatus();
+                    timer.Stop();
+                };
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                _playniteApi.Dialogs.ShowMessage($"Error: {ex.Message}", "Playnite Bridge");
+            }
+        }
+
+        private void BtnUninstallFSE_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    Arguments = "-Command \"Get-AppxPackage -Name Rollacode.PlayniteBridgeFSE | Remove-AppxPackage\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                System.Diagnostics.Process.Start(psi)?.WaitForExit(10000);
+                FlashButton(BtnUninstallFSE, "Removed!");
+                RefreshFSEStatus();
+            }
+            catch (Exception ex)
+            {
+                _playniteApi.Dialogs.ShowMessage($"Error: {ex.Message}", "Playnite Bridge");
+            }
+        }
+
+        private void RefreshFSEStatus()
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    Arguments = "-Command \"if (Get-AppxPackage -Name Rollacode.PlayniteBridgeFSE) { Write-Output 'yes' } else { Write-Output 'no' }\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+                var proc = System.Diagnostics.Process.Start(psi);
+                var output = proc.StandardOutput.ReadToEnd().Trim();
+                proc.WaitForExit(5000);
+
+                if (output == "yes")
+                {
+                    FSEStatus.Text = "Installed";
+                    FSEStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));
+                }
+                else
+                {
+                    FSEStatus.Text = "Not installed";
+                    FSEStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00));
+                }
+            }
+            catch { FSEStatus.Text = ""; }
         }
 
         private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
