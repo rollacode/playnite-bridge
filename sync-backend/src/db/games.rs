@@ -63,9 +63,9 @@ pub fn upsert(db: &Db, game: &Game, client_id: &str) -> AppResult<Option<String>
             last_activity = CASE WHEN COALESCE(excluded.last_activity,'') > COALESCE(games.last_activity,'') THEN excluded.last_activity ELSE games.last_activity END,
             canonical_key = COALESCE(excluded.canonical_key, games.canonical_key),
             client_modified = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN excluded.client_modified ELSE games.client_modified END,
-            cover_hash = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN COALESCE(excluded.cover_hash, games.cover_hash) ELSE games.cover_hash END,
-            icon_hash = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN COALESCE(excluded.icon_hash, games.icon_hash) ELSE games.icon_hash END,
-            background_hash = CASE WHEN COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'') THEN COALESCE(excluded.background_hash, games.background_hash) ELSE games.background_hash END,
+            cover_hash = COALESCE(excluded.cover_hash, games.cover_hash),
+            icon_hash = COALESCE(excluded.icon_hash, games.icon_hash),
+            background_hash = COALESCE(excluded.background_hash, games.background_hash),
             updated_at = datetime('now')",
         rusqlite::params![
             target_id, game.name, game.sorting_name, game.description, game.notes,
