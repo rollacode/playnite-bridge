@@ -1,6 +1,10 @@
 # Playnite Bridge
 
-A [Playnite](https://playnite.link/) plugin that exposes your entire game library through an HTTP API with token auth. Includes a **sync server** to keep libraries in sync across multiple PCs.
+A [Playnite](https://playnite.link/) plugin with REST API, cross-PC game library sync, and Xbox button integration for handhelds.
+
+**REST API** — 50+ endpoints for AI agents and automation
+**Sync** — playtime, categories, tags, artwork across machines via Tailscale/LAN
+**Xbox Button** — replace Xbox FSE with Playnite on ROG Ally, Legion Go, etc.
 
 ## Features
 
