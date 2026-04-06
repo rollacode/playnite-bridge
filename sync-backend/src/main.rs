@@ -1,9 +1,12 @@
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod config;
 mod error;
 mod models;
 mod db;
 mod api;
 mod tray;
+mod autostart;
 
 use clap::Parser;
 use std::path::PathBuf;

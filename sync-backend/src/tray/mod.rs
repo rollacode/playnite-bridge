@@ -1,7 +1,8 @@
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::{Window, WindowBuilder, Icon};
-use tray_icon::{TrayIconBuilder, menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem}};
+use tray_icon::{TrayIconBuilder, menu::{Menu, MenuEvent, MenuItem, CheckMenuItem, PredefinedMenuItem}};
+use crate::autostart;
 use wry::WebView;
 use wry::WebViewBuilder;
 
@@ -9,9 +10,10 @@ const WINDOW_TITLE: &str = "Playnite Sync";
 const WINDOW_WIDTH: f64 = 900.0;
 const WINDOW_HEIGHT: f64 = 620.0;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone)]
 enum UserEvent {
     ShowWindow,
+    ToggleAutostart,
     Quit,
 }
 
@@ -23,12 +25,16 @@ pub fn run(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     // Build tray menu
     let menu = Menu::new();
     let item_open = MenuItem::new("Open Dashboard", true, None);
+    let item_autostart = CheckMenuItem::new("Start with Windows", true, autostart::is_enabled(), None);
     let item_quit = MenuItem::new("Quit", true, None);
     menu.append(&item_open)?;
+    menu.append(&PredefinedMenuItem::separator())?;
+    menu.append(&item_autostart)?;
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&item_quit)?;
 
     let open_id = item_open.id().clone();
+    let autostart_id = item_autostart.id().clone();
     let quit_id = item_quit.id().clone();
 
     let tray_icon = create_tray_icon();
@@ -38,18 +44,21 @@ pub fn run(port: u16) -> Result<(), Box<dyn std::error::Error>> {
         .with_icon(tray_icon)
         .build()?;
 
+    // Forward menu events to the main event loop (CheckMenuItem isn't Send,
+    // so we can't touch it from a worker thread).
     let proxy_menu = proxy.clone();
-    std::thread::spawn(move || {
-        loop {
-            if let Ok(event) = MenuEvent::receiver().recv() {
-                if event.id() == &open_id {
-                    let _ = proxy_menu.send_event(UserEvent::ShowWindow);
-                } else if event.id() == &quit_id {
-                    let _ = proxy_menu.send_event(UserEvent::Quit);
-                }
-            }
-        }
-    });
+    MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
+        let user_event = if event.id == open_id {
+            UserEvent::ShowWindow
+        } else if event.id == autostart_id {
+            UserEvent::ToggleAutostart
+        } else if event.id == quit_id {
+            UserEvent::Quit
+        } else {
+            return;
+        };
+        let _ = proxy_menu.send_event(user_event);
+    }));
 
     tracing::info!("Tray icon active. Right-click to open menu.");
 
@@ -71,6 +80,18 @@ pub fn run(port: u16) -> Result<(), Box<dyn std::error::Error>> {
                             tracing::info!("Dashboard window opened");
                         }
                         Err(e) => tracing::error!("Failed to create window: {e}"),
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::ToggleAutostart) => {
+                // CheckMenuItem already flipped its visual state by the time we get here.
+                let now_enabled = item_autostart.is_checked();
+                let result = if now_enabled { autostart::enable() } else { autostart::disable() };
+                match result {
+                    Ok(_) => tracing::info!("Autostart {}", if now_enabled { "enabled" } else { "disabled" }),
+                    Err(e) => {
+                        tracing::error!("Failed to update autostart: {e}");
+                        item_autostart.set_checked(!now_enabled);
                     }
                 }
             }

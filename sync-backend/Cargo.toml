@@ -24,6 +24,9 @@ wry = "0.49"
 tray-icon = "0.19"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
+
 [profile.release]
 opt-level = "z"
 lto = true
