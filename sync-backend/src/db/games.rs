@@ -66,7 +66,20 @@ pub fn upsert(db: &Db, game: &Game, client_id: &str) -> AppResult<Option<String>
             cover_hash = COALESCE(excluded.cover_hash, games.cover_hash),
             icon_hash = COALESCE(excluded.icon_hash, games.icon_hash),
             background_hash = COALESCE(excluded.background_hash, games.background_hash),
-            updated_at = datetime('now')",
+            updated_at = CASE WHEN
+                COALESCE(excluded.client_modified,'') > COALESCE(games.client_modified,'')
+                OR excluded.playtime > games.playtime
+                OR excluded.play_count > games.play_count
+                OR COALESCE(excluded.last_activity,'') > COALESCE(games.last_activity,'')
+                OR (games.canonical_key IS NULL AND excluded.canonical_key IS NOT NULL)
+                OR (games.game_id IS NULL AND excluded.game_id IS NOT NULL)
+                OR (games.source IS NULL AND excluded.source IS NOT NULL)
+                OR (games.cover_hash IS NULL AND excluded.cover_hash IS NOT NULL)
+                OR (games.icon_hash IS NULL AND excluded.icon_hash IS NOT NULL)
+                OR (games.background_hash IS NULL AND excluded.background_hash IS NOT NULL)
+                THEN datetime('now')
+                ELSE games.updated_at
+            END",
         rusqlite::params![
             target_id, game.name, game.sorting_name, game.description, game.notes,
             game.game_id, game.source, game.release_date,
@@ -377,4 +390,66 @@ fn load_links(conn: &rusqlite::Connection, game: &mut Game) -> Result<(), rusqli
         Ok(GameLink { name: row.get(0)?, url: row.get(1)? })
     })?.collect::<Result<Vec<_>, _>>()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+
+    fn test_game(id: &str, status: &str, modified: &str) -> Game {
+        Game {
+            id: id.into(),
+            name: "Test Game".into(),
+            sorting_name: None,
+            description: None,
+            notes: None,
+            game_id: Some("12345".into()),
+            source: Some("Steam".into()),
+            release_date: None,
+            community_score: None,
+            critic_score: None,
+            user_score: None,
+            favorite: false,
+            hidden: false,
+            completion_status: Some(status.into()),
+            version: None,
+            playtime: 0,
+            play_count: 0,
+            last_activity: None,
+            genres: Vec::new(),
+            categories: Vec::new(),
+            tags: Vec::new(),
+            features: Vec::new(),
+            developers: Vec::new(),
+            publishers: Vec::new(),
+            platforms: Vec::new(),
+            series: Vec::new(),
+            links: Vec::new(),
+            cover_hash: None,
+            icon_hash: None,
+            background_hash: None,
+            is_installed: None,
+            created_at: None,
+            updated_at: Some(modified.into()),
+        }
+    }
+
+    #[test]
+    fn upsert_keeps_newer_completion_status_after_stale_push() {
+        let db = db::open_in_memory().unwrap();
+        db::migrations::run(&db).unwrap();
+
+        upsert(&db, &test_game("game-1", "Playing", "2026-06-28T10:00:00Z"), "client-a").unwrap();
+        upsert(&db, &test_game("game-1", "Abandoned", "2026-06-28T10:05:00Z"), "client-a").unwrap();
+
+        let before_stale = find_by_id(&db, "game-1").unwrap().unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(1));
+
+        upsert(&db, &test_game("game-1", "Playing", "2026-06-28T10:00:00Z"), "client-a").unwrap();
+        let after_stale = find_by_id(&db, "game-1").unwrap().unwrap();
+
+        assert_eq!(after_stale.completion_status, Some("Abandoned".into()));
+        assert_eq!(after_stale.updated_at, before_stale.updated_at);
+    }
 }

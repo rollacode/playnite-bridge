@@ -142,7 +142,7 @@ pub struct Game {
     // Timestamps
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "modified", skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
 }
 
@@ -334,6 +334,25 @@ mod tests {
         assert_eq!(game.playtime, 1000);
         assert!(game.genres.is_empty());
         assert!(game.links.is_empty());
+    }
+
+    #[test]
+    fn test_game_deserialize_playnite_modified_as_updated_at() {
+        let json = r#"{
+            "id": "test-modified",
+            "name": "Modified Game",
+            "source": "Steam",
+            "gameId": "12345",
+            "playtime": 0,
+            "playCount": 0,
+            "modified": "2026-06-28T10:20:30Z",
+            "completionStatus": "Abandoned"
+        }"#;
+
+        let game: Game = serde_json::from_str(json).expect("Should deserialize Playnite modified timestamp");
+
+        assert_eq!(game.updated_at, Some("2026-06-28T10:20:30Z".into()));
+        assert_eq!(game.completion_status, Some("Abandoned".into()));
     }
 
     #[test]

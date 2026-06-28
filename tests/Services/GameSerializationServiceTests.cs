@@ -136,5 +136,14 @@ namespace PlayniteBridge.Tests.Services
             foreach (var key in expectedKeys)
                 Assert.IsTrue(dict.ContainsKey(key), $"Missing key: {key}");
         }
+
+        [Test]
+        public void SerializeForSync_UsesModifiedOverride_WhenProvided()
+        {
+            var game = new Game("Test");
+            var dict = ToDict(_svc.SerializeForSync(game, db: null, modifiedOverride: "2026-06-28T16:00:00Z"));
+
+            Assert.AreEqual("2026-06-28T16:00:00Z", dict["modified"]);
+        }
     }
 }

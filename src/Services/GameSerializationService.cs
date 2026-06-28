@@ -78,7 +78,7 @@ namespace PlayniteBridge.Services
         }
 
         /// <summary>Serialize for sync — includes image hashes.</summary>
-        public object SerializeForSync(Game g, IGameDatabaseAPI db)
+        public object SerializeForSync(Game g, IGameDatabaseAPI db, string modifiedOverride = null)
         {
             return new
             {
@@ -106,7 +106,7 @@ namespace PlayniteBridge.Services
                 playtime = (long)g.Playtime,
                 playCount = (long)g.PlayCount,
                 lastActivity = g.LastActivity?.ToString("o"),
-                modified = g.Modified?.ToString("o"),
+                modified = modifiedOverride ?? g.Modified?.ToString("o"),
                 communityScore = g.CommunityScore,
                 criticScore = g.CriticScore,
                 userScore = g.UserScore,

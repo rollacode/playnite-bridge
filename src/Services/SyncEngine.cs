@@ -88,7 +88,7 @@ namespace PlayniteBridge.Services
 
             try
             {
-                var serialized = _serializer.SerializeForSync(game, _api.Database);
+                var serialized = _serializer.SerializeForSync(game, _api.Database, DateTime.UtcNow.ToString("o"));
                 var batch = new List<object> { serialized };
                 var response = _client.Push("games", batch);
                 if (response == null) return Fail("Push failed");
