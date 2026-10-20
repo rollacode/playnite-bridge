@@ -61,13 +61,18 @@ namespace PlayniteBridge.Services
                     GenerateExecutable = false,
                     TreatWarningsAsErrors = false,
                 };
+                var frameworkDependencies = new List<AssemblyName>();
+                var referenceIdentities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
                     try
                     {
                         if (!asm.IsDynamic && !string.IsNullOrEmpty(asm.Location))
-                            parms.ReferencedAssemblies.Add(asm.Location);
+                        {
+                            if (referenceIdentities.Add(asm.FullName)) parms.ReferencedAssemblies.Add(asm.Location);
+                            frameworkDependencies.AddRange(asm.GetReferencedAssemblies());
+                        }
                     }
                     catch { }
                 }
@@ -80,10 +85,16 @@ namespace PlayniteBridge.Services
                 {
                     foreach (var dll in System.IO.Directory.GetFiles(facadeDir, "*.dll"))
                     {
-                        try { parms.ReferencedAssemblies.Add(dll); }
+                        try
+                        {
+                            if (referenceIdentities.Add(AssemblyName.GetAssemblyName(dll).FullName))
+                                parms.ReferencedAssemblies.Add(dll);
+                        }
                         catch { }
                     }
                 }
+
+                AddFrameworkReferences(parms, frameworkDependencies, referenceIdentities);
 
                 var compiled = provider.CompileAssemblyFromSource(parms, source);
 
@@ -103,6 +114,45 @@ namespace PlayniteBridge.Services
                     Result = compiled.CompiledAssembly.GetType("ScriptHost")
                         .GetMethod("Execute", BindingFlags.Public | BindingFlags.Static)
                 };
+            }
+        }
+
+        // Framework facades can live in the GAC rather than a runtime Facades
+        // directory. Resolve the dependency graph, including transitive references,
+        // without loading code into the execution context or probing plugin folders.
+        internal static void AddFrameworkReferences(CompilerParameters parms, IEnumerable<AssemblyName> dependencies,
+            HashSet<string> referenceIdentities)
+        {
+            var pending = new Queue<AssemblyName>(dependencies);
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var referencedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var identity in referenceIdentities) referencedNames.Add(new AssemblyName(identity).Name);
+            foreach (string path in parms.ReferencedAssemblies) paths.Add(path);
+            while (pending.Count != 0)
+            {
+                var name = pending.Dequeue();
+                if (!visited.Add(name.FullName)) continue;
+                // Preserve the executing application's selected version. The C#
+                // compiler also unifies older framework references to the current
+                // framework; adding their GAC copies can produce CS1703 even when
+                // the file paths and full assembly identities differ.
+                if (referencedNames.Contains(name.Name)) continue;
+                var token = BitConverter.ToString(name.GetPublicKeyToken() ?? new byte[0]).Replace("-", "").ToLowerInvariant();
+                if (token != "b77a5c561934e089" && token != "b03f5f7f11d50a3a" &&
+                    token != "31bf3856ad364e35" && token != "cc7b13ffcd2ddd51") continue;
+                try
+                {
+                    var assembly = Assembly.ReflectionOnlyLoad(name.FullName);
+                    if (!assembly.GlobalAssemblyCache || string.IsNullOrEmpty(assembly.Location)) continue;
+                    if (!referencedNames.Add(assembly.GetName().Name)) continue;
+                    if (referenceIdentities.Add(assembly.FullName) && paths.Add(assembly.Location))
+                        parms.ReferencedAssemblies.Add(assembly.Location);
+                    foreach (var dependency in assembly.GetReferencedAssemblies()) pending.Enqueue(dependency);
+                }
+                catch (System.IO.FileNotFoundException) { }
+                catch (System.IO.FileLoadException) { }
+                catch (BadImageFormatException) { }
             }
         }
 
