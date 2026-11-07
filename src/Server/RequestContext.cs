@@ -1,5 +1,6 @@
 namespace PlayniteBridge.Server
 {
+    using System;
     using System.Collections.Generic;
     using System.Collections.Specialized;
     using System.IO;
@@ -13,6 +14,12 @@ namespace PlayniteBridge.Server
         public NameValueCollection QueryString { get; set; }
         public string RawBody { get; set; }
 
+        /// <summary>
+        /// Set when <see cref="RawBody"/> could not be parsed, so handlers can answer with
+        /// a 400 instead of letting the serializer exception surface as a 500.
+        /// </summary>
+        public string BodyError { get; private set; }
+
         private Dictionary<string, object> _body;
         public Dictionary<string, object> Body
         {
@@ -20,8 +27,16 @@ namespace PlayniteBridge.Server
             {
                 if (_body == null && !string.IsNullOrEmpty(RawBody))
                 {
-                    var js = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue };
-                    _body = js.Deserialize<Dictionary<string, object>>(RawBody);
+                    try
+                    {
+                        var js = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                        _body = js.Deserialize<Dictionary<string, object>>(RawBody);
+                    }
+                    catch (Exception ex)
+                    {
+                        BodyError = "Malformed JSON body: " + ex.Message;
+                        _body = new Dictionary<string, object>();
+                    }
                 }
                 return _body;
             }

@@ -183,7 +183,19 @@ When set, returns `[{group, count, totalHours}]` instead of game list. Great for
 - All loaded assemblies (SDK, plugins, System.*) are available
 - Access other plugins: `PlayniteApi.Addons.Plugins.FirstOrDefault(p => p.Id == someGuid)`
 
-Response: `{success, result, resultType, durationMs}` or `{success: false, error, errors}`
+Response: `{success, result, resultType, durationMs}` or `{success: false, error, errors, errorsDetailed}`
+
+Compilation failures return `errors` as formatted strings (`"(line,column): CSxxxx message"`) plus
+`errorsDetailed` as structured objects (`[{line, column, errorNumber, message}]`). Prefer `errorsDetailed`
+when you need to parse failures.
+
+**Language ceiling:** eval compiles with the in-box `csc` through CodeDOM, so it is **C# 5**. `var`,
+lambdas, LINQ, `dynamic` and `async`/`await` work. These do **not**: string interpolation (`$"..."`),
+null-conditional (`?.`), `nameof`, tuples (`(1, 2)`), `out var`, pattern matching, local functions,
+switch expressions, `using var`, target-typed `new`. Rewrite or fully qualify instead.
+
+**Cost:** every call compiles a fresh in-memory assembly that is never unloaded, so prefer one larger
+script over many small calls in a long session. `timeoutMs` only stops the wait, not the script.
 
 ### Auth
 

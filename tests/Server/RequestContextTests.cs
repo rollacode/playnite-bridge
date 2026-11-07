@@ -37,6 +37,26 @@ namespace PlayniteBridge.Tests.Server
         }
 
         [Test]
+        public void Body_MalformedJson_SetsBodyErrorAndDoesNotThrow()
+        {
+            var ctx = new RequestContext { RawBody = "{\"code\":" };
+
+            Assert.DoesNotThrow(() => { var _ = ctx.Body; });
+            Assert.IsNotNull(ctx.Body, "Handlers index the body, so it must not be null.");
+            Assert.IsEmpty(ctx.Body);
+            StringAssert.Contains("Malformed JSON", ctx.BodyError);
+        }
+
+        [Test]
+        public void Body_ValidJson_LeavesBodyErrorNull()
+        {
+            var ctx = new RequestContext { RawBody = "{\"a\": 1}" };
+
+            Assert.AreEqual(1, ctx.Body["a"]);
+            Assert.IsNull(ctx.BodyError);
+        }
+
+        [Test]
         public void Body_SetDirectly_SkipsJsonParsing()
         {
             var ctx = new RequestContext

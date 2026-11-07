@@ -1,6 +1,7 @@
 namespace PlayniteBridge.Handlers
 {
     using System;
+    using System.Globalization;
     using System.Reflection;
     using Playnite.SDK;
     using Playnite.SDK.Plugins;
@@ -25,18 +26,51 @@ namespace PlayniteBridge.Handlers
             _serializer = serializer;
         }
 
+        private static bool TryReadTimeout(object value, out int timeoutMs)
+        {
+            timeoutMs = 0;
+            if (value == null) return false;
+
+            switch (value)
+            {
+                case int i: timeoutMs = i; return true;
+                case long l when l >= int.MinValue && l <= int.MaxValue: timeoutMs = (int)l; return true;
+                case double d when d >= int.MinValue && d <= int.MaxValue: timeoutMs = (int)d; return true;
+                case decimal m when m >= int.MinValue && m <= int.MaxValue: timeoutMs = (int)m; return true;
+                case string s:
+                    return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out timeoutMs);
+                default:
+                    return false;
+            }
+        }
+
         public object HandleEval(RequestContext ctx)
         {
             var body = ctx.Body;
+
+            if (!string.IsNullOrEmpty(ctx.BodyError))
+                return new { error = ctx.BodyError, code = 400 };
+
+            if (body == null)
+                return new { error = "Missing 'code' field", code = 400 };
+
             var code = body.GetValueOrNull("code") as string;
             if (string.IsNullOrWhiteSpace(code))
                 return new { error = "Missing 'code' field", code = 400 };
 
             var timeoutMs = 10000;
-            if (body.ContainsKey("timeoutMs"))
+            object rawTimeout;
+            if (body.TryGetValue("timeoutMs", out rawTimeout) && rawTimeout != null)
             {
-                var t = Convert.ToInt32(body["timeoutMs"]);
-                timeoutMs = Math.Max(1000, Math.Min(t, 30000));
+                int requested;
+                if (!TryReadTimeout(rawTimeout, out requested))
+                    return new
+                    {
+                        error = "Invalid 'timeoutMs' value: expected an integer between 1000 and 30000",
+                        code = 400,
+                    };
+
+                timeoutMs = Math.Max(1000, Math.Min(requested, 30000));
             }
 
             var onUiThread = body.ContainsKey("onUiThread") && body["onUiThread"] is bool ui && ui;
@@ -47,7 +81,13 @@ namespace PlayniteBridge.Handlers
             var compileResult = _evalService.Compile(source);
             if (!compileResult.Success)
             {
-                return new { success = false, error = compileResult.Error, errors = compileResult.CompilationErrors };
+                return new
+                {
+                    success = false,
+                    error = compileResult.Error,
+                    errors = compileResult.CompilationErrors,
+                    errorsDetailed = compileResult.CompilationErrorDetails,
+                };
             }
 
             var method = (MethodInfo)compileResult.Result;
