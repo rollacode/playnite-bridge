@@ -14,7 +14,7 @@ List/search games with pagination.
 **Query parameters:**
 
 | Parameter | Description |
-|-----------|-------------|
+| ----------- | ------------- |
 | `q` | Name search (case-insensitive substring) |
 | `installed` | `true` for installed only |
 | `favorite` | `true` for favorites only |
@@ -31,6 +31,7 @@ List/search games with pagination.
 | `offset` | Pagination offset |
 
 **Response:**
+
 ```json
 {
   "total": 150,
@@ -74,7 +75,7 @@ Update any game fields. Send only the fields you want to change.
 **Body fields (all optional):**
 
 | Field | Type | Notes |
-|-------|------|-------|
+| ------- | ------ | ------- |
 | `name` | string | |
 | `sortingName` | string | |
 | `description` | string | |
@@ -174,7 +175,7 @@ List games missing artwork.
 All return `[{id, name}, ...]`
 
 | Method | Path |
-|--------|------|
+| -------- | ------ |
 | GET/POST | `/api/categories` |
 | GET/POST | `/api/genres` |
 | GET/POST | `/api/tags` |
@@ -246,6 +247,74 @@ Fetch missing artwork for all games in the library.
 
 ---
 
+## Eval
+
+### POST /api/eval
+
+Compile and run C# inside the Playnite process. The snippet has access to `PlayniteApi`
+(`IPlayniteAPI`) and `Plugin` (`GenericPlugin`).
+
+**Body:**
+
+| Field | Type | Notes |
+| ------- | ------ | ------- |
+| `code` | string | Required. No `;` means expression (auto-wrapped in `return (...)`); otherwise statements, use `return` explicitly |
+| `timeoutMs` | int | 1000-30000, default 10000 |
+| `onUiThread` | bool | Dispatch to the WPF UI thread, needed for UI operations |
+
+**Example:**
+
+```json
+{"code": "PlayniteApi.Database.Games.Count", "timeoutMs": 10000}
+```
+
+**Success:**
+
+```json
+{"success": true, "result": 3097, "resultType": "Int32", "durationMs": 214}
+```
+
+**Compile failure:**
+
+```json
+{
+  "success": false,
+  "error": "Compilation failed",
+  "errors": ["(17,5): CS0103 The name 'foo' does not exist in the current context"],
+  "errorsDetailed": [
+    {"line": 17, "column": 5, "errorNumber": "CS0103", "message": "The name 'foo' does not exist in the current context"}
+  ]
+}
+```
+
+`errors` is kept for backwards compatibility; `errorsDetailed` carries the parsed
+`CompilerError` fields.
+
+The compiler reference set is de-duplicated by assembly simple name, preferring the copy in
+Playnite's own folder. This keeps `CS1703` (same identity imported twice) and `CS1704` (same
+simple name, two versions) from breaking every call when extensions bundle their own copies of
+shared assemblies.
+
+**Runtime failure:**
+
+```json
+{"success": false, "error": "Object reference not set to an instance of an object.", "exceptionType": "NullReferenceException", "durationMs": 8}
+```
+
+**Validation failures** return HTTP 200 with `code: 400` in the body: missing or blank `code`,
+malformed JSON, or a non-integer `timeoutMs`.
+
+**Limitations:**
+
+- **C# 5 only.** Compilation goes through the in-box `csc` via CodeDOM. `var`, lambdas, LINQ,
+  `dynamic` and `async`/`await` are fine. Not available: string interpolation, `?.`, `nameof`,
+  tuples, `out var`, pattern matching, local functions, switch expressions, `using var`,
+  target-typed `new`.
+- **One assembly per call, never unloaded.** Long sessions accumulate in-memory assemblies.
+- **`timeoutMs` stops the wait, not the script.** The work keeps running on a background thread.
+
+---
+
 ## Auth
 
 ### POST /api/auth/rotate
@@ -261,16 +330,19 @@ Get the AI skill file with current token embedded.
 ## Error Responses
 
 **401 Unauthorized:**
+
 ```json
 {"error": "Unauthorized. Header required: Authorization: Bearer <token>"}
 ```
 
 **404 Not Found:**
+
 ```json
 {"error": "Not found", "help": "GET /api for endpoint list"}
 ```
 
 **500 Internal Server Error:**
+
 ```json
 {"error": "Error message"}
 ```
